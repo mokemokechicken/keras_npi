@@ -1,7 +1,7 @@
 #!/bin/sh
 
 THIS_DIR=$(cd $(dirname $0); pwd)
-DATA_DIR=${THIS_DIR}/data
+DATA_DIR=${THIS_DIR}/../data
 OUTPUT_FILE=${1:-${DATA_DIR}/train.pkl}
 LOG=train_result.log
 export PYTHONPATH=${THIS_DIR}

@@ -24,8 +24,7 @@ def main(stdscr, filename: str, num: int, result_logger: ResultLogger):
         addition_env.reset()
         run_npi(addition_env, npi_runner, program_set.ADD, data)
         result_logger.write(data)
-        if DEBUG_MODE:
-            terminal.add_log(data)
+        terminal.add_log(data)
 
     if filename:
         with open(filename, 'wb') as f:

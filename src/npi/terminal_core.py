@@ -125,8 +125,8 @@ class TerminalNPIRunner:
         self.step_list = []
         self.model.reset()
 
-    def display(self, env):
-        if self.verbose and self.terminal:
+    def display_env(self, env, force=False):
+        if (self.verbose or force) and self.terminal:
             show_env_to_terminal(self.terminal, env)
 
     def display_information(self, program: Program, arguments: IntegerArguments, result: StepOutput):
@@ -156,7 +156,7 @@ class TerminalNPIRunner:
 
             if program.output_to_env:
                 program.do(env, arguments.copy())
-                self.display(env)
+                self.display_env(env)
             else:
                 if result.program:  # modify original algorithm
                     self.npi_program_interface(env, result.program, result.arguments)
