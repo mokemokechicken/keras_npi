@@ -125,33 +125,38 @@ class TerminalNPIRunner:
         self.step_list = []
         self.model.reset()
 
+    def display(self, env):
+        if self.verbose and self.terminal:
+            show_env_to_terminal(self.terminal, env)
+
+    def display_information(self, program: Program, arguments: IntegerArguments, result: StepOutput):
+        if self.verbose and self.terminal:
+            information = [
+                "Step %s" % self.steps,
+                program.description_with_args(arguments),
+                'r=%.2f' % result.r,
+            ]
+            if result.program:
+                information.append("-> %s" % result.program.description_with_args(result.arguments))
+            self.terminal.update_info_screen(information)
+            self.wait()
+
     def npi_program_interface(self, env, program: Program, arguments: IntegerArguments):
         self.model.enter_function()
 
         result = StepOutput(0, None, None)
         while result.r < self.alpha:
             self.steps += 1
-            information = [
-                "Step %s" % self.steps,
-                program.description_with_args(arguments),
-            ]
 
             env_observation = env.get_observation()
             result = self.model.step(env_observation, program, arguments.copy())
-            self.step_list.append(StepInOut((StepInput(env_observation, program, arguments.copy()), result)))
-            if self.verbose:
-                information.append('r=%.2f' % result.r)
-                if result.program:
-                    information.append("-> %s" % result.program.description_with_args(result.arguments))
 
-            if self.verbose:
-                self.terminal.update_info_screen(information)
-                self.wait()
+            self.step_list.append(StepInOut(StepInput(env_observation, program, arguments.copy()), result))
+            self.display_information(program, arguments, result)
 
             if program.output_to_env:
                 program.do(env, arguments.copy())
-                if self.verbose:
-                    show_env_to_terminal(self.terminal, env)
+                self.display(env)
             else:
                 if result.program:  # modify original algorithm
                     self.npi_program_interface(env, result.program, result.arguments)

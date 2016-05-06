@@ -253,6 +253,7 @@ def run_npi(addition_env, npi_runner, program, data):
     addition_env.setup_problem(data['in1'], data['in2'])
 
     npi_runner.reset()
+    npi_runner.display(addition_env)
     npi_runner.npi_program_interface(addition_env, program, IntegerArguments())
 
     data['result'] = addition_env.get_output()
