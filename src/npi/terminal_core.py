@@ -3,7 +3,7 @@
 import curses
 import numpy as np
 
-from npi.core import Program, IntegerArguments, NPIStep, StepResult, StepInput
+from npi.core import Program, IntegerArguments, NPIStep, StepOutput, StepInput, StepInOut
 
 __author__ = 'k_morishita'
 
@@ -128,7 +128,7 @@ class TerminalNPIRunner:
     def npi_program_interface(self, env, program: Program, arguments: IntegerArguments):
         self.model.enter_function()
 
-        result = StepResult(0, None, None)
+        result = StepOutput(0, None, None)
         while result.r < self.alpha:
             self.steps += 1
             information = [
@@ -138,7 +138,7 @@ class TerminalNPIRunner:
 
             env_observation = env.get_observation()
             result = self.model.step(env_observation, program, arguments.copy())
-            self.step_list.append((StepInput(env_observation, program, arguments.copy()), result))
+            self.step_list.append(StepInOut((StepInput(env_observation, program, arguments.copy()), result)))
             if self.verbose:
                 information.append('r=%.2f' % result.r)
                 if result.program:

@@ -1,9 +1,10 @@
 # coding: utf-8
+from random import random
 
 import numpy as np
 
+from npi.core import Program, IntegerArguments, StepOutput, NPIStep
 from npi.terminal_core import Screen, Terminal
-from npi.core import Program, IntegerArguments, StepResult, NPIStep
 
 __author__ = 'k_morishita'
 
@@ -151,22 +152,22 @@ class AdditionTeacher(NPIStep):
     def exit_function(self):
         self.step_queue = self.step_queue_stack.pop()
 
-    def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepResult:
+    def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         if not self.step_queue:
             self.step_queue = self.sub_program[pg.program_id](env_observation, arguments)
         if self.step_queue:
             ret = self.convert_for_step_return(self.step_queue[0])
             self.step_queue = self.step_queue[1:]
         else:
-            ret = StepResult(PG_RETURN, None, None)
+            ret = StepOutput(PG_RETURN, None, None)
         return ret
 
     @staticmethod
-    def convert_for_step_return(step_values: tuple) -> StepResult:
+    def convert_for_step_return(step_values: tuple) -> StepOutput:
         if len(step_values) == 2:
-            return StepResult(PG_CONTINUE, step_values[0], IntegerArguments(step_values[1]))
+            return StepOutput(PG_CONTINUE, step_values[0], IntegerArguments(step_values[1]))
         else:
-            return StepResult(step_values[0], step_values[1], IntegerArguments(step_values[2]))
+            return StepOutput(step_values[0], step_values[1], IntegerArguments(step_values[2]))
 
     @staticmethod
     def pg_primitive(env_observation: np.ndarray, arguments: IntegerArguments):
@@ -227,9 +228,32 @@ class AdditionTeacher(NPIStep):
         return ret
 
 
-class AdditionNPIModel(NPIStep):
-    def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepResult:
-        return StepResult(PG_RETURN, None, None)
+def create_char_map():
+    char_map = dict((i+1, "%s" % i) for i in range(10))
+    char_map[0] = ' '
+    return char_map
 
-    def fit(self, step_list):
-        pass
+
+def create_questions(num=100, max_number=10000):
+    questions = [
+        dict(in1=1, in2=4),
+        dict(in1=30, in2=50),
+        dict(in1=36, in2=85),
+        dict(in1=104, in2=902),
+    ]
+
+    for _ in range(num):
+        questions.append(dict(in1=int(random() * max_number), in2=int(random() * max_number)))
+    return questions
+
+
+def run_npi(addition_env, npi_runner, program, data):
+    data['expect'] = data['in1'] + data['in2']
+
+    addition_env.setup_problem(data['in1'], data['in2'])
+
+    npi_runner.reset()
+    npi_runner.npi_program_interface(addition_env, program, IntegerArguments())
+
+    data['result'] = addition_env.get_output()
+    data['correct'] = data['result'] == data['expect']

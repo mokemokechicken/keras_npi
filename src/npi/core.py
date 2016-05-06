@@ -12,8 +12,9 @@ MAX_ARG_NUM = 3    #
 ARG_DEPTH = 8  # 8bit integer
 
 
-StepResult = namedtuple('StepResult', ['r', 'program', 'arguments'])
 StepInput = namedtuple('StepInput',  ['env', 'program', 'arguments'])
+StepOutput = namedtuple('StepOutput', ['r', 'program', 'arguments'])
+StepInOut = namedtuple('StepInOut', ['input', 'output'])
 
 
 class IntegerArguments:
@@ -89,6 +90,6 @@ class NPIStep:
     def exit_function(self):
         pass
 
-    def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepResult:
+    def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         raise NotImplementedError()
 
