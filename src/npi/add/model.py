@@ -32,8 +32,8 @@ class AdditionNPIModel(NPIStep):
         self.load_weights()
 
     def build(self):
-        L1_COST = 0.0001
-        L2_COST = 0.0001
+        L1_COST = 0.001
+        L2_COST = 0.001
         input_enc = InputLayer(batch_input_shape=(self.batch_size, self.size_of_env_observation()), name='input_enc')
         input_arg = InputLayer(batch_input_shape=(self.batch_size, IntegerArguments.size_of_arguments), name='input_arg')
         input_prg = Embedding(input_dim=MAX_PROGRAM_NUM, output_dim=PROGRAM_VEC_SIZE, input_length=1,
@@ -76,15 +76,18 @@ class AdditionNPIModel(NPIStep):
         f_arg.add(Activation('sigmoid', name='sigmoid_arg'))
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
-        model = Model([*f_enc.inputs, program_embedding.input], [f_end.output, f_prog.output, f_arg.output], name="npi")
+        model = Model([input_enc.input, input_arg.input, input_prg.input],
+                      [f_end.output, f_prog.output, f_arg.output],
+                      name="npi")
         model.compile(optimizer='rmsprop',
                       loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'],
-                      )
+                      loss_weights=[1.0, 0.1, 0.1])
         plot(model, to_file='model.png', show_shapes=True)
 
         self.model = model
 
-    def reset_lstm(self):
+    def reset(self):
+        super(AdditionNPIModel, self).reset()
         for l in self.model.layers:
             if type(l) is LSTM:
                 l.reset_states()
@@ -96,7 +99,7 @@ class AdditionNPIModel(NPIStep):
         :return:
         """
         for idx, steps in enumerate(steps_list):
-            self.reset_lstm()
+            self.reset()
             xs = []
             ys = []
             losses = []
@@ -120,9 +123,9 @@ class AdditionNPIModel(NPIStep):
             if idx % 10 == 0:
                 self.save()
 
-    def convert_input(self, i: StepInput):
-        x_pg = np.array((i.program.program_id,))
-        x = [xx.reshape((self.batch_size, -1)) for xx in (i.env, i.arguments.values, x_pg)]
+    def convert_input(self, params: StepInput):
+        x_pg = np.array((params.program.program_id,))
+        x = [xx.reshape((self.batch_size, -1)) for xx in (params.env, params.arguments.values, x_pg)]
         return x
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
@@ -137,7 +140,6 @@ class AdditionNPIModel(NPIStep):
     def load_weights(self):
         if os.path.exists(self.model_path):
             self.model.load_weights(self.model_path)
-
 
     @staticmethod
     def size_of_env_observation():

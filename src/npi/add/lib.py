@@ -131,6 +131,7 @@ class AdditionTeacher(NPIStep):
         self.register_subprogram(program_set.RSHIFT  , self.pg_rshift)
 
     def reset(self):
+        super(AdditionTeacher, self).reset()
         self.step_queue_stack = []
         self.step_queue = None
 
