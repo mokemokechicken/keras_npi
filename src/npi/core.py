@@ -6,11 +6,11 @@ from copy import copy
 
 import numpy as np
 
-__author__ = 'k_morishita'
-
 MAX_ARG_NUM = 3    #
 ARG_DEPTH = 8  # 8bit integer
 
+PG_CONTINUE = 0
+PG_RETURN = 1
 
 StepInput = namedtuple('StepInput',  ['env', 'program', 'arguments'])
 StepOutput = namedtuple('StepOutput', ['r', 'program', 'arguments'])
@@ -102,6 +102,3 @@ class RuntimeSystem:
     def logging(self, message):
         print(message)
 
-
-PG_CONTINUE = 0
-PG_RETURN = 1

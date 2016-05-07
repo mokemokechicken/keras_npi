@@ -12,10 +12,10 @@ from npi.terminal_core import TerminalNPIRunner, Terminal
 def main(filename: str, output_filename: str):
     system = RuntimeSystem()
     with open(filename, 'rb') as f:
-        step_list = pickle.load(f)
+        steps_list = pickle.load(f)
 
     npi_model = AdditionNPIModel(system)
-    # npi_model.fit(npi_runner.step_list)
+    npi_model.fit(steps_list)
 
 
 if __name__ == '__main__':

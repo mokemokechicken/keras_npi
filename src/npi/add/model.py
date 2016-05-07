@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 # coding: utf-8
 import numpy as np
-from keras.engine.topology import Merge
+from keras.engine.topology import Merge, Input, InputLayer
 from keras.engine.training import Model
 from keras.layers.core import Dense, Activation, Reshape
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
 from keras.models import Sequential
 from keras.utils.visualize_util import plot
+import keras.backend as K
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, MAX_PROGRAM_NUM, PROGRAM_KEY_VEC_SIZE
-from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN
-
+from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut
 
 __author__ = 'k_morishita'
 
@@ -25,14 +25,18 @@ class AdditionNPIModel(NPIStep):
         self.build()
 
     def build(self):
-        size_of_enc_input = self.size_of_env_observation() + IntegerArguments.size_of_arguments
+        input_enc = InputLayer(batch_input_shape=(self.batch_size, self.size_of_env_observation()), name='input_enc')
+        input_arg = InputLayer(batch_input_shape=(self.batch_size, IntegerArguments.size_of_arguments), name='input_arg')
+        input_prg = Embedding(input_dim=MAX_PROGRAM_NUM, output_dim=PROGRAM_VEC_SIZE, input_length=1,
+                              batch_input_shape=(self.batch_size, 1))
+
         f_enc = Sequential(name='f_enc')
-        f_enc.add(Dense(20, batch_input_shape=(self.batch_size, size_of_enc_input)))
+        f_enc.add(Merge([input_enc, input_arg], mode='concat'))
+        f_enc.add(Dense(20))
         f_enc.add(Reshape((1, 20)))
 
         program_embedding = Sequential(name='program_embedding')
-        program_embedding.add(Embedding(input_dim=MAX_PROGRAM_NUM, output_dim=PROGRAM_VEC_SIZE, input_length=1,
-                                        batch_input_shape=(self.batch_size, 1)))
+        program_embedding.add(input_prg)
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc, program_embedding], mode='concat'))
@@ -62,14 +66,31 @@ class AdditionNPIModel(NPIStep):
         f_arg.add(Activation('sigmoid', name='sigmoid_3'))
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
-        model = Model([f_enc.input, program_embedding.input], [f_end.output, f_prog.output, f_arg.output], name="npi")
+        model = Model([*f_enc.inputs, program_embedding.input], [f_end.output, f_prog.output, f_arg.output], name="npi")
         model.compile(optimizer='rmsprop', loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'])
         plot(model, to_file='model.png', show_shapes=True)
 
         self.model = model
 
-    def fit(self, step_list):
-        pass
+    def reset_lstm(self):
+        for l in self.model.layers:
+            if type(l) is LSTM:
+                l.reset_states()
+
+    def fit(self, steps_list):
+        """
+
+        :param typing.List[typing.List[StepInOut]] steps_list:
+        :return:
+        """
+        for steps in steps_list:
+            self.reset_lstm()
+            xs = []
+            ys = []
+            for step in steps:
+                xs.append(())
+
+
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         return StepOutput(PG_RETURN, None, None)
