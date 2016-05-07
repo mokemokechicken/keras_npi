@@ -77,7 +77,7 @@ class AdditionNPIModel(NPIStep):
         f_arg.add(f_lstm)
         f_arg.add(Dense(20, W_regularizer=l1(l=L1_COST)))
         f_arg.add(Dense(argument_size, W_regularizer=l1(l=L1_COST)))
-        f_arg.add(Activation('sigmoid', name='sigmoid_arg'))
+        f_arg.add(Activation('relu', name='relu_arg'))
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
         model = Model([input_enc.input, input_arg.input, input_prg.input],
@@ -85,7 +85,7 @@ class AdditionNPIModel(NPIStep):
                       name="npi")
         model.compile(optimizer='rmsprop',
                       loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'],
-                      loss_weights=[1.0, 0.2, 0.5])
+                      loss_weights=[1.0, 0.2, 1.0])
         plot(model, to_file='model.png', show_shapes=True)
 
         self.model = model
@@ -105,10 +105,8 @@ class AdditionNPIModel(NPIStep):
         """
         for ep in range(1, epoch+1):
             for idx, steps in enumerate(steps_list):
-                self.reset()
                 xs = []
                 ys = []
-                losses = []
                 for step in steps:
                     # INPUT
                     xs.append(self.convert_input(step.input))
@@ -122,12 +120,17 @@ class AdditionNPIModel(NPIStep):
                     y = [yy.reshape((self.batch_size, -1)) for yy in y]
                     ys.append(y)
 
-                for i, (x, y) in enumerate(zip(xs, ys)):
-                    loss = self.model.train_on_batch(x, y)
-                    losses.append(loss)
-                print("ep: %2d %s: ave loss %.3f" % (ep, idx, np.average(losses)))
+                for _ in range(100):
+                    self.reset()
+                    losses = []
+
+                    for i, (x, y) in enumerate(zip(xs, ys)):
+                        loss = self.model.train_on_batch(x, y)
+                        losses.append(loss)
+                    print("ep: %2d %s: ave loss %.3f" % (ep, idx, np.average(losses)))
                 if idx % 10 == 0:
                     self.save()
+                    print("save model")
 
     def convert_input(self, params: StepInput):
         x_pg = np.array((params.program.program_id,))

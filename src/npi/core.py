@@ -37,12 +37,12 @@ class IntegerArguments:
     def decode_all(self):
         return [self.decode_at(i) for i in range(len(self.values))]
 
-    def decode_at(self, index: int):
-        return int(self.values[index])
+    def decode_at(self, index: int) -> int:
+        return int(np.round(self.values[index]))
 
     def update_to(self, index: int, integer: int):
         self.valid_index.add(index)
-        self.values[index] = int(integer)
+        self.values[index] = np.round(integer)
 
     def __str__(self):
         return "<IA: %s>" % self.decode_all()
