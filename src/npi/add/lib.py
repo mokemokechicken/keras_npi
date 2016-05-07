@@ -3,14 +3,10 @@ from random import random
 
 import numpy as np
 
-from npi.core import Program, IntegerArguments, StepOutput, NPIStep
+from npi.core import Program, IntegerArguments, StepOutput, NPIStep, PG_CONTINUE, PG_RETURN
 from npi.terminal_core import Screen, Terminal
 
 __author__ = 'k_morishita'
-
-
-PG_CONTINUE = 0
-PG_RETURN = 1
 
 
 class AdditionEnv:

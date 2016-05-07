@@ -2,3 +2,5 @@
 .python-version
 *.pyc
 *.log
+*.png
+.DS_Store

@@ -20,6 +20,7 @@ StepInOut = namedtuple('StepInOut', ['input', 'output'])
 class IntegerArguments:
     depth = ARG_DEPTH
     max_arg_num = MAX_ARG_NUM
+    size_of_arguments = depth * max_arg_num
 
     def __init__(self, args: list=None):
         self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.int8)
@@ -93,3 +94,14 @@ class NPIStep:
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         raise NotImplementedError()
 
+
+class RuntimeSystem:
+    def __init__(self):
+        pass
+
+    def logging(self, message):
+        print(message)
+
+
+PG_CONTINUE = 0
+PG_RETURN = 1
