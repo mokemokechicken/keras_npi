@@ -19,15 +19,17 @@ def main(stdscr, filename: str, num: int, result_logger: ResultLogger):
     teacher = AdditionTeacher(program_set, terminal)
     npi_runner = TerminalNPIRunner(terminal, teacher)
     npi_runner.verbose = DEBUG_MODE
+    steps_list = []
     for data in questions:
         addition_env.reset()
         run_npi(addition_env, npi_runner, program_set.ADD, data)
+        steps_list.append(npi_runner.step_list)
         result_logger.write(data)
         terminal.add_log(data)
 
     if filename:
         with open(filename, 'wb') as f:
-            pickle.dump(npi_runner.step_list, f, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(steps_list, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
     import sys

@@ -17,10 +17,12 @@ __author__ = 'k_morishita'
 
 
 class AdditionNPIModel(NPIStep):
+    model = None
+
     def __init__(self, system: RuntimeSystem):
         self.system = system
         self.batch_size = 1
-        model = self.build()
+        self.build()
 
     def build(self):
         size_of_enc_input = self.size_of_env_observation() + IntegerArguments.size_of_arguments
@@ -61,10 +63,10 @@ class AdditionNPIModel(NPIStep):
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
         model = Model([f_enc.input, program_embedding.input], [f_end.output, f_prog.output, f_arg.output], name="npi")
+        model.compile(optimizer='rmsprop', loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'])
         plot(model, to_file='model.png', show_shapes=True)
 
-
-        return model
+        self.model = model
 
     def fit(self, step_list):
         pass
