@@ -67,7 +67,9 @@ class AdditionNPIModel(NPIStep):
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
         model = Model([*f_enc.inputs, program_embedding.input], [f_end.output, f_prog.output, f_arg.output], name="npi")
-        model.compile(optimizer='rmsprop', loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'])
+        model.compile(optimizer='rmsprop',
+                      loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'],
+                      )
         plot(model, to_file='model.png', show_shapes=True)
 
         self.model = model
@@ -83,10 +85,11 @@ class AdditionNPIModel(NPIStep):
         :param typing.List[typing.List[StepInOut]] steps_list:
         :return:
         """
-        for steps in steps_list:
+        for idx, steps in enumerate(steps_list):
             self.reset_lstm()
             xs = []
             ys = []
+            losses = []
             for step in steps:
                 # INPUT
                 i = step.input
@@ -103,9 +106,9 @@ class AdditionNPIModel(NPIStep):
                 y = [yy.reshape((1, -1)) for yy in y]
                 ys.append(y)
             for i, (x, y) in enumerate(zip(xs, ys)):
-                losses = self.model.train_on_batch(x, y)
-                if i % 10 == 0:
-                    print("%s: %s" % (i, losses))
+                loss = self.model.train_on_batch(x, y)
+                losses.append(loss)
+            print("%s: ave loss %.3f" % (idx, np.average(losses)))
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         return StepOutput(PG_RETURN, None, None)
