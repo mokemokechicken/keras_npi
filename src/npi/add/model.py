@@ -102,9 +102,10 @@ class AdditionNPIModel(NPIStep):
                     y += [np.zeros((PROGRAM_VEC_SIZE, )), IntegerArguments().values]
                 y = [yy.reshape((1, -1)) for yy in y]
                 ys.append(y)
-            for x, y in zip(xs, ys):
+            for i, (x, y) in enumerate(zip(xs, ys)):
                 losses = self.model.train_on_batch(x, y)
-                print(losses)
+                if i % 10 == 0:
+                    print("%s: %s" % (i, losses))
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         return StepOutput(PG_RETURN, None, None)
