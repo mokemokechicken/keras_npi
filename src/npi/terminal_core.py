@@ -130,10 +130,10 @@ class TerminalNPIRunner:
         if (self.verbose or force) and self.terminal:
             show_env_to_terminal(self.terminal, env)
 
-    def display_information(self, program: Program, arguments: IntegerArguments, result: StepOutput):
+    def display_information(self, program: Program, arguments: IntegerArguments, result: StepOutput, depth: int):
         if self.verbose and self.terminal:
             information = [
-                "Step %s" % self.steps,
+                "Step %2d Depth: %2d" % (self.steps, depth),
                 program.description_with_args(arguments),
                 'r=%.2f' % result.r,
             ]
@@ -142,7 +142,7 @@ class TerminalNPIRunner:
             self.terminal.update_info_screen(information)
             self.wait()
 
-    def npi_program_interface(self, env, program: Program, arguments: IntegerArguments):
+    def npi_program_interface(self, env, program: Program, arguments: IntegerArguments, depth=0):
         self.model.enter_function()
 
         result = StepOutput(0, None, None)
@@ -153,14 +153,14 @@ class TerminalNPIRunner:
             result = self.model.step(env_observation, program, arguments.copy())
             if self.recording:
                 self.step_list.append(StepInOut(StepInput(env_observation, program, arguments.copy()), result))
-            self.display_information(program, arguments, result)
+            self.display_information(program, arguments, result, depth)
 
             if program.output_to_env:
                 program.do(env, arguments.copy())
                 self.display_env(env)
             else:
                 if result.program:  # modify original algorithm
-                    self.npi_program_interface(env, result.program, result.arguments)
+                    self.npi_program_interface(env, result.program, result.arguments, depth=depth+1)
 
         self.model.exit_function()
 
