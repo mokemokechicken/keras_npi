@@ -88,9 +88,23 @@ class AdditionNPIModel(NPIStep):
             xs = []
             ys = []
             for step in steps:
-                xs.append(())
-
-
+                # INPUT
+                i = step.input
+                x_pg = np.array((i.program.program_id,))
+                x = [xx.reshape((1, -1)) for xx in (i.env, i.arguments.values, x_pg)]
+                xs.append(x)
+                # OUTPUT
+                o = step.output
+                y = [np.array((o.r, ))]
+                if o.program:
+                    y += [o.program.to_one_hot(PROGRAM_VEC_SIZE), o.arguments.values]
+                else:
+                    y += [np.zeros((PROGRAM_VEC_SIZE, )), IntegerArguments().values]
+                y = [yy.reshape((1, -1)) for yy in y]
+                ys.append(y)
+            for x, y in zip(xs, ys):
+                losses = self.model.train_on_batch(x, y)
+                print(losses)
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         return StepOutput(PG_RETURN, None, None)

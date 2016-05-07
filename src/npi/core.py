@@ -12,10 +12,6 @@ ARG_DEPTH = 8  # 8bit integer
 PG_CONTINUE = 0
 PG_RETURN = 1
 
-StepInput = namedtuple('StepInput',  ['env', 'program', 'arguments'])
-StepOutput = namedtuple('StepOutput', ['r', 'program', 'arguments'])
-StepInOut = namedtuple('StepInOut', ['input', 'output'])
-
 
 class IntegerArguments:
     depth = ARG_DEPTH
@@ -64,11 +60,36 @@ class Program:
         int_args = args.decode_all()
         return "%s(%s)" % (self.name, ", ".join([str(x) for x in int_args]))
 
+    def to_one_hot(self, size, dtype=np.float):
+        ret = np.zeros((size,), dtype=dtype)
+        ret[self.program_id] = 1
+        return ret
+
     def do(self, env, args: IntegerArguments):
         raise NotImplementedError()
 
     def __str__(self):
         return "<Program: name=%s>" % self.name
+
+
+class StepInput:
+    def __init__(self, env: np.ndarray, program: Program, arguments: IntegerArguments):
+        self.env = env
+        self.program = program
+        self.arguments = arguments
+
+
+class StepOutput:
+    def __init__(self, r: float, program: Program=None, arguments: IntegerArguments=None):
+        self.r = r
+        self.program = program
+        self.arguments = arguments
+
+
+class StepInOut:
+    def __init__(self, input: StepInput, output: StepOutput):
+        self.input = input
+        self.output = output
 
 
 class ResultLogger:
