@@ -14,6 +14,7 @@ from keras.utils.visualize_util import plot
 import keras.backend as K
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, MAX_PROGRAM_NUM, PROGRAM_KEY_VEC_SIZE
+from npi.add.lib import AdditionProgramSet
 from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput
 
 __author__ = 'k_morishita'
@@ -22,9 +23,10 @@ __author__ = 'k_morishita'
 class AdditionNPIModel(NPIStep):
     model = None
 
-    def __init__(self, system: RuntimeSystem, model_path: str=None):
+    def __init__(self, system: RuntimeSystem, model_path: str=None, program_set: AdditionProgramSet=None):
         self.system = system
         self.model_path = model_path
+        self.program_set = program_set
         self.batch_size = 1
         self.build()
         self.load_weights()
@@ -125,10 +127,9 @@ class AdditionNPIModel(NPIStep):
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         x = self.convert_input(StepInput(env_observation, pg, arguments))
-        outputs = self.model.predict(x, batch_size=1)
-        r, pg_one_hot, args_value = outputs[0]
-        program_id = pg_one_hot.argmax()
-        return StepOutput(r, program_id, IntegerArguments(values=args_value))
+        r, pg_one_hot, args_value = self.model.predict(x, batch_size=1)  # if batch_size==1, returns single row
+        program = self.program_set.get(pg_one_hot.argmax())
+        return StepOutput(r, program, IntegerArguments(values=args_value))
 
     def save(self):
         self.model.save_weights(self.model_path, overwrite=True)

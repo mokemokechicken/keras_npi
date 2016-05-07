@@ -19,7 +19,7 @@ class IntegerArguments:
     size_of_arguments = depth * max_arg_num
 
     def __init__(self, args: list=None, values: np.ndarray=None):
-        if values:
+        if values is not None:
             self.values = values
         else:
             self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.int8)

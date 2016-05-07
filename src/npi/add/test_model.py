@@ -18,7 +18,7 @@ def main(stdscr, model_path: str, num: int, result_logger: ResultLogger):
 
     questions = create_questions(num)
     system = RuntimeSystem()
-    npi_model = AdditionNPIModel(system, model_path)
+    npi_model = AdditionNPIModel(system, model_path, program_set)
     npi_runner = TerminalNPIRunner(terminal, npi_model, recording=False)
     npi_runner.verbose = DEBUG_MODE
     for data in questions:
