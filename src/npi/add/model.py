@@ -132,7 +132,9 @@ class AdditionNPIModel(NPIStep):
         x = self.convert_input(StepInput(env_observation, pg, arguments))
         r, pg_one_hot, args_value = self.model.predict(x, batch_size=1)  # if batch_size==1, returns single row
         program = self.program_set.get(pg_one_hot.argmax())
-        return StepOutput(r, program, IntegerArguments(values=args_value))
+        ret = StepOutput(r, program, IntegerArguments(values=args_value))
+        self.system.logging(str(ret))
+        return ret
 
     def save(self):
         self.model.save_weights(self.model_path, overwrite=True)

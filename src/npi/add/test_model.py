@@ -17,7 +17,7 @@ def main(stdscr, model_path: str, num: int, result_logger: ResultLogger):
     addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
 
     questions = create_questions(num)
-    system = RuntimeSystem()
+    system = RuntimeSystem(terminal=terminal)
     npi_model = AdditionNPIModel(system, model_path, program_set)
     npi_runner = TerminalNPIRunner(terminal, npi_model, recording=False)
     npi_runner.verbose = DEBUG_MODE

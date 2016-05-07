@@ -50,6 +50,9 @@ class IntegerArguments:
             arg[i] = n % 2
             n //= 2
 
+    def __str__(self):
+        return "<IA: %s>" % self.decode_all()
+
 
 class Program:
     output_to_env = False
@@ -88,6 +91,9 @@ class StepOutput:
         self.program = program
         self.arguments = arguments
 
+    def __str__(self):
+        return "<StepOutput: r=%s pg=%s arg=%s>" % (self.r, self.program, self.arguments)
+
 
 class StepInOut:
     def __init__(self, input: StepInput, output: StepOutput):
@@ -120,9 +126,12 @@ class NPIStep:
 
 
 class RuntimeSystem:
-    def __init__(self):
-        pass
+    def __init__(self, terminal=None):
+        self.terminal = terminal
 
     def logging(self, message):
-        print(message)
+        if self.terminal:
+            self.terminal.add_log(message)
+        else:
+            print(message)
 
