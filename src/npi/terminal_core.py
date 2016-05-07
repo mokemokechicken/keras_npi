@@ -112,13 +112,14 @@ def show_env_to_terminal(terminal, env):
 
 
 class TerminalNPIRunner:
-    def __init__(self, terminal: Terminal, model: NPIStep=None):
+    def __init__(self, terminal: Terminal, model: NPIStep=None, recording=True):
         self.terminal = terminal
         self.model = model
         self.steps = 0
         self.step_list = []
         self.alpha = 0.5
         self.verbose = True
+        self.recording = recording
 
     def reset(self):
         self.steps = 0
@@ -150,8 +151,8 @@ class TerminalNPIRunner:
 
             env_observation = env.get_observation()
             result = self.model.step(env_observation, program, arguments.copy())
-
-            self.step_list.append(StepInOut(StepInput(env_observation, program, arguments.copy()), result))
+            if self.recording:
+                self.step_list.append(StepInOut(StepInput(env_observation, program, arguments.copy()), result))
             self.display_information(program, arguments, result)
 
             if program.output_to_env:

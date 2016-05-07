@@ -11,6 +11,7 @@ from npi.terminal_core import TerminalNPIRunner, Terminal
 
 def main(filename: str, model_path: str):
     system = RuntimeSystem()
+
     with open(filename, 'rb') as f:
         steps_list = pickle.load(f)
 

@@ -18,8 +18,11 @@ class IntegerArguments:
     max_arg_num = MAX_ARG_NUM
     size_of_arguments = depth * max_arg_num
 
-    def __init__(self, args: list=None):
-        self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.int8)
+    def __init__(self, args: list=None, values: np.ndarray=None):
+        if values:
+            self.values = values
+        else:
+            self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.int8)
         self.valid_index = set()
 
         if args:
@@ -36,7 +39,7 @@ class IntegerArguments:
         return [self.decode_at(i) for i in range(len(self.values))]
 
     def decode_at(self, index: int):
-        arg = self.values[index]
+        arg = self.values[index] >= 0.5
         return sum([x*(2**i) for i, x in enumerate(arg)])
 
     def update_to(self, index: int, integer: int):

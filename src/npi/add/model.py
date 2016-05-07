@@ -14,7 +14,7 @@ from keras.utils.visualize_util import plot
 import keras.backend as K
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, MAX_PROGRAM_NUM, PROGRAM_KEY_VEC_SIZE
-from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut
+from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput
 
 __author__ = 'k_morishita'
 
@@ -65,7 +65,7 @@ class AdditionNPIModel(NPIStep):
         f_prog.add(f_lstm)
         f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE, W_regularizer=l1(l=L1_COST)))
         f_prog.add(Dense(PROGRAM_VEC_SIZE, W_regularizer=l1(l=L1_COST)))
-        f_prog.add(Activation('sigmoid', name='sigmoid_2'))
+        f_prog.add(Activation('softmax', name='softmax_2'))
         # plot(f_prog, to_file='f_prog.png', show_shapes=True)
 
         f_arg = Sequential(name='f_arg')
@@ -100,10 +100,7 @@ class AdditionNPIModel(NPIStep):
             losses = []
             for step in steps:
                 # INPUT
-                i = step.input
-                x_pg = np.array((i.program.program_id,))
-                x = [xx.reshape((1, -1)) for xx in (i.env, i.arguments.values, x_pg)]
-                xs.append(x)
+                xs.append(self.convert_input(step.input))
                 # OUTPUT
                 o = step.output
                 y = [np.array((o.r, ))]
@@ -111,8 +108,9 @@ class AdditionNPIModel(NPIStep):
                     y += [o.program.to_one_hot(PROGRAM_VEC_SIZE), o.arguments.values]
                 else:
                     y += [np.zeros((PROGRAM_VEC_SIZE, )), IntegerArguments().values]
-                y = [yy.reshape((1, -1)) for yy in y]
+                y = [yy.reshape((self.batch_size, -1)) for yy in y]
                 ys.append(y)
+
             for i, (x, y) in enumerate(zip(xs, ys)):
                 loss = self.model.train_on_batch(x, y)
                 losses.append(loss)
@@ -120,8 +118,17 @@ class AdditionNPIModel(NPIStep):
             if idx % 10 == 0:
                 self.save()
 
+    def convert_input(self, i: StepInput):
+        x_pg = np.array((i.program.program_id,))
+        x = [xx.reshape((self.batch_size, -1)) for xx in (i.env, i.arguments.values, x_pg)]
+        return x
+
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
-        return StepOutput(PG_RETURN, None, None)
+        x = self.convert_input(StepInput(env_observation, pg, arguments))
+        outputs = self.model.predict(x, batch_size=1)
+        r, pg_one_hot, args_value = outputs[0]
+        program_id = pg_one_hot.argmax()
+        return StepOutput(r, program_id, IntegerArguments(values=args_value))
 
     def save(self):
         self.model.save_weights(self.model_path, overwrite=True)

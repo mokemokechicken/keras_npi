@@ -243,7 +243,7 @@ def create_questions(num=100, max_number=10000):
     return questions
 
 
-def run_npi(addition_env, npi_runner, program, data):
+def run_npi(addition_env, npi_runner, program, data, record=True):
     data['expect'] = data['in1'] + data['in2']
 
     addition_env.setup_problem(data['in1'], data['in2'])
