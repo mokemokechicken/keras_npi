@@ -112,7 +112,7 @@ def show_env_to_terminal(terminal, env):
 
 
 class TerminalNPIRunner:
-    def __init__(self, terminal: Terminal, model: NPIStep=None, recording=True):
+    def __init__(self, terminal: Terminal, model: NPIStep=None, recording=True, max_depth=5, max_step=1000):
         self.terminal = terminal
         self.model = model
         self.steps = 0
@@ -120,6 +120,8 @@ class TerminalNPIRunner:
         self.alpha = 0.5
         self.verbose = True
         self.recording = recording
+        self.max_depth = max_depth
+        self.max_step = max_step
 
     def reset(self):
         self.steps = 0
@@ -143,11 +145,16 @@ class TerminalNPIRunner:
             self.wait()
 
     def npi_program_interface(self, env, program: Program, arguments: IntegerArguments, depth=0):
+        if self.max_depth < depth or self.max_step < self.steps:
+            raise StopIteration()
+
         self.model.enter_function()
 
         result = StepOutput(0, None, None)
         while result.r < self.alpha:
             self.steps += 1
+            if self.max_step < self.steps:
+                raise StopIteration()
 
             env_observation = env.get_observation()
             result = self.model.step(env_observation, program, arguments.copy())

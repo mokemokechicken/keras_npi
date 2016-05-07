@@ -2,6 +2,7 @@
 import os
 import curses
 import pickle
+from copy import copy
 
 from npi.add.config import FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH
 from npi.add.lib import AdditionEnv, AdditionProgramSet, AdditionTeacher, create_char_map, create_questions, run_npi
@@ -22,8 +23,9 @@ def main(stdscr, filename: str, num: int, result_logger: ResultLogger):
     steps_list = []
     for data in questions:
         addition_env.reset()
+        q = copy(data)
         run_npi(addition_env, npi_runner, program_set.ADD, data)
-        steps_list.append(npi_runner.step_list)
+        steps_list.append({"q": q, "steps": npi_runner.step_list})
         result_logger.write(data)
         terminal.add_log(data)
 

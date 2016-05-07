@@ -13,9 +13,10 @@ from keras.regularizers import l1, l2
 from keras.utils.visualize_util import plot
 import keras.backend as K
 
-from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, MAX_PROGRAM_NUM, PROGRAM_KEY_VEC_SIZE
-from npi.add.lib import AdditionProgramSet
+from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, MAX_PROGRAM_NUM, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
+from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi
 from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput
+from npi.terminal_core import TerminalNPIRunner
 
 __author__ = 'k_morishita'
 
@@ -100,11 +101,17 @@ class AdditionNPIModel(NPIStep):
         """
 
         :param int epoch:
-        :param typing.List[typing.List[StepInOut]] steps_list:
+        :param typing.List[typing.Dict[q=dict, steps=typing.List[StepInOut]]] steps_list:
         :return:
         """
+
+        addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
+        npi_runner = TerminalNPIRunner(None, self)
+
         for ep in range(1, epoch+1):
-            for idx, steps in enumerate(steps_list):
+            for idx, steps_dict in enumerate(steps_list):
+                question = steps_dict['q']
+                steps = steps_dict['steps']
                 xs = []
                 ys = []
                 for step in steps:
@@ -120,14 +127,30 @@ class AdditionNPIModel(NPIStep):
                     y = [yy.reshape((self.batch_size, -1)) for yy in y]
                     ys.append(y)
 
-                for _ in range(100):
+                it = 0
+                while True:
+                    it += 1
                     self.reset()
                     losses = []
 
                     for i, (x, y) in enumerate(zip(xs, ys)):
                         loss = self.model.train_on_batch(x, y)
                         losses.append(loss)
-                    print("ep: %2d %s: ave loss %.3f" % (ep, idx, np.average(losses)))
+                    print("ep: %2d %s %s: ave loss %.3f" % (ep, idx, it, np.average(losses)))
+
+                    if it % 100 == 0:
+                        self.save()
+                        print("save model")
+                        addition_env.reset()
+                        self.reset()
+                        try:
+                            run_npi(addition_env, npi_runner, self.program_set.ADD, question)
+                            print(question)
+                            if question['correct']:
+                                break
+                        except StopIteration:
+                            pass
+
                 if idx % 10 == 0:
                     self.save()
                     print("save model")
@@ -142,7 +165,6 @@ class AdditionNPIModel(NPIStep):
         r, pg_one_hot, args_value = self.model.predict(x, batch_size=1)  # if batch_size==1, returns single row
         program = self.program_set.get(pg_one_hot.argmax())
         ret = StepOutput(r, program, IntegerArguments(values=args_value))
-        self.system.logging(str(ret))
         return ret
 
     def save(self):
