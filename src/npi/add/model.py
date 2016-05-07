@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
+import os
+
 import numpy as np
 from keras.engine.topology import Merge, Input, InputLayer
 from keras.engine.training import Model
 from keras.layers.core import Dense, Activation, Reshape
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
-from keras.models import Sequential
+from keras.models import Sequential, model_from_yaml
 from keras.utils.visualize_util import plot
 import keras.backend as K
 
@@ -19,10 +21,12 @@ __author__ = 'k_morishita'
 class AdditionNPIModel(NPIStep):
     model = None
 
-    def __init__(self, system: RuntimeSystem):
+    def __init__(self, system: RuntimeSystem, model_path: str=None):
         self.system = system
+        self.model_path = model_path
         self.batch_size = 1
         self.build()
+        self.load_weights()
 
     def build(self):
         input_enc = InputLayer(batch_input_shape=(self.batch_size, self.size_of_env_observation()), name='input_enc')
@@ -109,9 +113,19 @@ class AdditionNPIModel(NPIStep):
                 loss = self.model.train_on_batch(x, y)
                 losses.append(loss)
             print("%s: ave loss %.3f" % (idx, np.average(losses)))
+            if idx % 10 == 0:
+                self.save()
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         return StepOutput(PG_RETURN, None, None)
+
+    def save(self):
+        self.model.save_weights(self.model_path, overwrite=True)
+
+    def load_weights(self):
+        if os.path.exists(self.model_path):
+            self.model.load_weights(self.model_path)
+
 
     @staticmethod
     def size_of_env_observation():

@@ -9,12 +9,12 @@ from npi.core import ResultLogger, RuntimeSystem
 from npi.terminal_core import TerminalNPIRunner, Terminal
 
 
-def main(filename: str, output_filename: str):
+def main(filename: str, model_path: str):
     system = RuntimeSystem()
     with open(filename, 'rb') as f:
         steps_list = pickle.load(f)
 
-    npi_model = AdditionNPIModel(system)
+    npi_model = AdditionNPIModel(system, model_path)
     npi_model.fit(steps_list)
 
 
