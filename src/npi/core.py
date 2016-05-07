@@ -1,13 +1,12 @@
 # coding: utf-8
 
 import json
-from collections import namedtuple
 from copy import copy
 
 import numpy as np
 
-MAX_ARG_NUM = 3    #
-ARG_DEPTH = 8  # 8bit integer
+MAX_ARG_NUM = 3
+ARG_DEPTH = 1
 
 PG_CONTINUE = 0
 PG_RETURN = 1
@@ -22,7 +21,7 @@ class IntegerArguments:
         if values is not None:
             self.values = values.reshape((self.max_arg_num, self.depth))
         else:
-            self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.int8)
+            self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.float32)
         self.valid_index = set()
 
         if args:
@@ -39,16 +38,11 @@ class IntegerArguments:
         return [self.decode_at(i) for i in range(len(self.values))]
 
     def decode_at(self, index: int):
-        arg = self.values[index] >= 0.5
-        return sum([x*(2**i) for i, x in enumerate(arg)])
+        return int(self.values[index])
 
     def update_to(self, index: int, integer: int):
         self.valid_index.add(index)
-        arg = self.values[index]
-        n = int(integer)
-        for i in range(len(arg)):
-            arg[i] = n % 2
-            n //= 2
+        self.values[index] = int(integer)
 
     def __str__(self):
         return "<IA: %s>" % self.decode_all()
