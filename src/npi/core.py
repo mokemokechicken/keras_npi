@@ -20,7 +20,7 @@ class IntegerArguments:
 
     def __init__(self, args: list=None, values: np.ndarray=None):
         if values is not None:
-            self.values = values
+            self.values = values.reshape((self.max_arg_num, self.depth))
         else:
             self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.int8)
         self.valid_index = set()

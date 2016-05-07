@@ -32,8 +32,8 @@ class AdditionNPIModel(NPIStep):
         self.load_weights()
 
     def build(self):
-        L1_COST = 0.001
-        L2_COST = 0.001
+        L1_COST = 0.0001
+        L2_COST = 0.0001
         input_enc = InputLayer(batch_input_shape=(self.batch_size, self.size_of_env_observation()), name='input_enc')
         input_arg = InputLayer(batch_input_shape=(self.batch_size, IntegerArguments.size_of_arguments), name='input_arg')
         input_prg = Embedding(input_dim=MAX_PROGRAM_NUM, output_dim=PROGRAM_VEC_SIZE, input_length=1,
@@ -50,30 +50,30 @@ class AdditionNPIModel(NPIStep):
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc, program_embedding], mode='concat'))
-        f_lstm.add(Activation('relu', name='relu_0'))
+        f_lstm.add(Activation('relu', name='relu_lstm_0'))
         f_lstm.add(LSTM(256, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
-        f_lstm.add(Activation('relu', name='relu_1'))
+        f_lstm.add(Activation('relu', name='relu_lstm_1'))
         f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(l=L2_COST)))
-        f_lstm.add(Activation('relu', name='relu_2'))
+        f_lstm.add(Activation('relu', name='relu_lstm_2'))
         # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
 
         f_end = Sequential(name='f_end')
         f_end.add(f_lstm)
         f_end.add(Dense(1, W_regularizer=l1(l=L1_COST)))
-        f_end.add(Activation('sigmoid', name='sigmoid_1'))
+        f_end.add(Activation('sigmoid', name='sigmoid_end'))
         # plot(f_end, to_file='f_end.png', show_shapes=True)
 
         f_prog = Sequential(name='f_prog')
         f_prog.add(f_lstm)
         f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE, W_regularizer=l1(l=L1_COST)))
         f_prog.add(Dense(PROGRAM_VEC_SIZE, W_regularizer=l1(l=L1_COST)))
-        f_prog.add(Activation('softmax', name='softmax_2'))
+        f_prog.add(Activation('softmax', name='softmax_prog'))
         # plot(f_prog, to_file='f_prog.png', show_shapes=True)
 
         f_arg = Sequential(name='f_arg')
         f_arg.add(f_lstm)
         f_arg.add(Dense(IntegerArguments.size_of_arguments, W_regularizer=l1(l=L1_COST)))
-        f_arg.add(Activation('sigmoid', name='sigmoid_3'))
+        f_arg.add(Activation('sigmoid', name='sigmoid_arg'))
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
         model = Model([*f_enc.inputs, program_embedding.input], [f_end.output, f_prog.output, f_arg.output], name="npi")
