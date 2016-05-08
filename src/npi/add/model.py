@@ -53,11 +53,11 @@ class AdditionNPIModel(NPIStep):
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc, program_embedding], mode='concat'))
-        f_lstm.add(Activation('relu', name='relu_lstm_0'))
+        # f_lstm.add(Activation('relu', name='relu_lstm_0'))
         # f_lstm.add(LSTM(64, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
         # f_lstm.add(Activation('relu', name='relu_lstm_1'))
-        f_lstm.add(LSTM(64, return_sequences=False, stateful=True, W_regularizer=l2(l=L2_COST)))
-        f_lstm.add(Activation('relu', name='relu_lstm_2'))
+        f_lstm.add(LSTM(128, return_sequences=False, stateful=True, W_regularizer=l2(l=L2_COST)))
+        # f_lstm.add(Activation('relu', name='relu_lstm_2'))
         # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
 
         f_end = Sequential(name='f_end')
@@ -76,8 +76,8 @@ class AdditionNPIModel(NPIStep):
 
         f_arg = Sequential(name='f_arg')
         f_arg.add(f_lstm)
-        f_arg.add(Dense(20, W_regularizer=l2(l=L2_COST*0.01)))
-        f_arg.add(Dense(argument_size, W_regularizer=l2(l=L2_COST*0.01)))
+        # f_arg.add(Dense(64, W_regularizer=l1(l=L1_COST*0.01)))
+        f_arg.add(Dense(argument_size, W_regularizer=l1(l=L1_COST*0.01)))
         f_arg.add(Activation('relu', name='relu_arg'))
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
@@ -86,7 +86,7 @@ class AdditionNPIModel(NPIStep):
                       name="npi")
         model.compile(optimizer='rmsprop',
                       loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'],
-                      loss_weights=[0.25, 0.1, 1.0])
+                      loss_weights=[0.25, 0.25, 1.0])
         plot(model, to_file='model.png', show_shapes=True)
 
         self.model = model
@@ -109,8 +109,12 @@ class AdditionNPIModel(NPIStep):
         npi_runner = TerminalNPIRunner(None, self)
 
         for ep in range(1, epoch+1):
-            for idx, steps_dict in enumerate(steps_list):
+            for idx, steps_dict in enumerate(steps_list[:40]):
                 question = steps_dict['q']
+                if self.question_test(addition_env, npi_runner, question):
+                    print("GOOD!: ep=%2d idx=%s :%s" % (ep, idx, question))
+                    continue
+
                 steps = steps_dict['steps']
                 xs = []
                 ys = []
@@ -121,7 +125,7 @@ class AdditionNPIModel(NPIStep):
                     ys.append(y)
                     ws.append(w)
 
-                it = 0
+                it = -1
                 while True:
                     it += 1
                     self.reset()
@@ -130,24 +134,25 @@ class AdditionNPIModel(NPIStep):
                     for i, (x, y, w) in enumerate(zip(xs, ys, ws)):
                         loss = self.model.train_on_batch(x, y, sample_weight=w)
                         losses.append(loss)
-                    print("ep: %2d %s %s: ave loss %.3f" % (ep, idx, it, np.average(losses)))
+                    print("ep=%2d idx=%s %s: ave loss %.3f" % (ep, idx, it, np.average(losses)))
 
-                    if it % 10 == 0:
-                        self.save()
-                        print("save model")
-                        addition_env.reset()
-                        self.reset()
-                        try:
-                            run_npi(addition_env, npi_runner, self.program_set.ADD, question)
-                            print(question)
-                            if question['correct']:
-                                break
-                        except StopIteration:
-                            pass
+                    if it % 3 == 0 and self.question_test(addition_env, npi_runner, question):
+                        break
 
                 if idx % 10 == 0:
                     self.save()
                     print("save model")
+
+    def question_test(self, addition_env, npi_runner, question):
+        addition_env.reset()
+        self.reset()
+        try:
+            run_npi(addition_env, npi_runner, self.program_set.ADD, question)
+            if question['correct']:
+                return True
+        except StopIteration:
+            pass
+        return False
 
     def convert_input(self, p_in: StepInput):
         x_pg = np.array((p_in.program.program_id,))
