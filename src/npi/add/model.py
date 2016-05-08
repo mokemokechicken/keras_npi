@@ -30,7 +30,6 @@ class AdditionNPIModel(NPIStep):
         self.model_path = model_path
         self.program_set = program_set
         self.batch_size = 1
-        self.lr = 0.0001
         self.build()
         self.load_weights()
 
@@ -89,7 +88,7 @@ class AdditionNPIModel(NPIStep):
         self.model = Model([input_enc.input, input_arg.input, input_prg.input],
                            [f_end.output, f_prog.output] + [fa.output for fa in f_args],
                            name="npi")
-        self.compile_model(self.lr)
+        self.compile_model()
         plot(self.model, to_file='model.png', show_shapes=True)
 
     def reset(self):
@@ -146,6 +145,10 @@ class AdditionNPIModel(NPIStep):
         print("%s is all_ok=%s" % (q_type, all_ok))
 
     def fit_to_subset(self, steps_list, epoch=3000):
+        learning_rate = 0.0001
+        print("Re-Compile Model lr=%s" % learning_rate)
+        self.compile_model(learning_rate)
+
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
         npi_runner = TerminalNPIRunner(None, self)
         all_ok = False
@@ -154,11 +157,14 @@ class AdditionNPIModel(NPIStep):
                 break
             all_ok = True
             losses = []
+            ok_rate = []
             for idx, steps_dict in enumerate(steps_list):
                 question = steps_dict['q']
                 if self.question_test(addition_env, npi_runner, question):
                     print("GOOD!: ep=%2d idx=%s :%s" % (ep, idx, question))
+                    ok_rate.append(1)
                     continue
+                ok_rate.append(0)
                 all_ok = False
 
                 steps = steps_dict['steps']
@@ -177,13 +183,13 @@ class AdditionNPIModel(NPIStep):
                     loss = self.model.train_on_batch(x, y, sample_weight=w)
                     losses.append(loss)
             if losses:
-                print("ep=%2d: ave loss %.3f" % (ep, np.average(losses)))
+                print("ep=%2d: ok_rate=%.2f%% ave loss %.3f" % (ep, np.average(ok_rate)*100, np.average(losses)))
             self.save()
 
             if ep % 50 == 0:
-                self.lr *= 0.95
-                print("Re-Compile Model lr=%s" % self.lr)
-                self.compile_model(self.lr)
+                learning_rate *= 0.95
+                print("Re-Compile Model lr=%s" % learning_rate)
+                self.compile_model(learning_rate)
         return all_ok
 
     def question_test(self, addition_env, npi_runner, question):
