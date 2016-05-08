@@ -158,6 +158,7 @@ class AdditionNPIModel(NPIStep):
             all_ok = True
             losses = []
             ok_rate = []
+            np.random.shuffle(steps_list)
             for idx, steps_dict in enumerate(steps_list):
                 question = steps_dict['q']
                 if self.question_test(addition_env, npi_runner, question):
@@ -183,7 +184,7 @@ class AdditionNPIModel(NPIStep):
                     loss = self.model.train_on_batch(x, y, sample_weight=w)
                     losses.append(loss)
             if losses:
-                print("ep=%2d: ok_rate=%.2f%% ave loss %.3f" % (ep, np.average(ok_rate)*100, np.average(losses)))
+                print("ep=%2d: ok_rate=%.2f%% ave loss %.3f (%s samples)" % (ep, np.average(ok_rate)*100, np.average(losses), len(steps_list)))
             self.save()
 
             if ep % 50 == 0:

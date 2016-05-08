@@ -236,11 +236,7 @@ def create_char_map():
 
 def create_questions(num=100, max_number=10000):
     questions = []
-    for in1 in range(1, 9):
-        for in2 in range(10-in1):
-            questions.append(dict(in1=in1, in2=in2))
-
-    for in1 in range(1, 10):
+    for in1 in range(10):
         for in2 in range(10):
             questions.append(dict(in1=in1, in2=in2))
 
