@@ -6,7 +6,7 @@ from copy import copy
 import numpy as np
 
 MAX_ARG_NUM = 3
-ARG_DEPTH = 1
+ARG_DEPTH = 10   # 0~9 digit. one-hot.
 
 PG_CONTINUE = 0
 PG_RETURN = 1
@@ -22,7 +22,6 @@ class IntegerArguments:
             self.values = values.reshape((self.max_arg_num, self.depth))
         else:
             self.values = np.zeros((self.max_arg_num, self.depth), dtype=np.float32)
-        self.valid_index = set()
 
         if args:
             for i, v in enumerate(args):
@@ -31,18 +30,17 @@ class IntegerArguments:
     def copy(self):
         obj = IntegerArguments()
         obj.values = np.copy(self.values)
-        obj.valid_index = copy(self.valid_index)
         return obj
 
     def decode_all(self):
         return [self.decode_at(i) for i in range(len(self.values))]
 
     def decode_at(self, index: int) -> int:
-        return int(np.round(self.values[index]))
+        return self.values[index].argmax()
 
     def update_to(self, index: int, integer: int):
-        self.valid_index.add(index)
-        self.values[index] = np.round(integer)
+        self.values[index] = 0
+        self.values[index, int(np.clip(integer, 0, self.depth-1))] = 1
 
     def __str__(self):
         return "<IA: %s>" % self.decode_all()
