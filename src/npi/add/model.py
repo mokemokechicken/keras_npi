@@ -78,7 +78,7 @@ class AdditionNPIModel(NPIStep):
         for ai in range(1, IntegerArguments.max_arg_num+1):
             f_arg = Sequential(name='f_arg%s' % ai)
             f_arg.add(f_lstm)
-            # f_arg.add(Dense(64, W_regularizer=l1(l=L1_COST*0.01)))
+            f_arg.add(Dense(32, W_regularizer=l1(l=L1_COST*0.01)))
             f_arg.add(Dense(IntegerArguments.depth, W_regularizer=l1(l=L1_COST*0.01)))
             f_arg.add(Activation('softmax', name='softmax_arg%s' % ai))
             f_args.append(f_arg)
@@ -184,9 +184,11 @@ class AdditionNPIModel(NPIStep):
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         x = self.convert_input(StepInput(env_observation, pg, arguments))
-        r, pg_one_hot, args_value = self.model.predict(x, batch_size=1)  # if batch_size==1, returns single row
+        results = self.model.predict(x, batch_size=1)  # if batch_size==1, returns single row
+
+        r, pg_one_hot, arg_values = results[0], results[1], results[2:]
         program = self.program_set.get(pg_one_hot.argmax())
-        ret = StepOutput(r, program, IntegerArguments(values=args_value))
+        ret = StepOutput(r, program, IntegerArguments(values=np.stack(arg_values)))
         return ret
 
     def save(self):
