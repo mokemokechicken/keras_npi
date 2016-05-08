@@ -124,9 +124,9 @@ class AdditionNPIModel(NPIStep):
         all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), epoch=epoch)
         print("%s is all_ok=%s" % (q_type, all_ok))
 
-        q_type = "training questions of 10 <= a+b < 20"
+        q_type = "training questions of a<10 and b< 10 and 10 <= a+b"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: 10 <= a + b < 20), epoch=epoch)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), epoch=epoch)
         print("%s is all_ok=%s" % (q_type, all_ok))
 
         q_type = "training questions of a<10 and b<10"
@@ -187,7 +187,7 @@ class AdditionNPIModel(NPIStep):
                 print("ep=%2d: ok_rate=%.2f%% ave loss %.3f (%s samples)" % (ep, np.average(ok_rate)*100, np.average(losses), len(steps_list)))
             self.save()
 
-            if ep % 50 == 0:
+            if ep % 100 == 0:
                 learning_rate *= 0.95
                 print("Re-Compile Model lr=%s" % learning_rate)
                 self.compile_model(learning_rate)
