@@ -9,6 +9,7 @@ from keras.layers.core import Dense, Activation, Reshape
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
 from keras.models import Sequential, model_from_yaml
+from keras.optimizers import Adam
 from keras.regularizers import l1, l2
 from keras.utils.visualize_util import plot
 import keras.backend as K
@@ -29,6 +30,7 @@ class AdditionNPIModel(NPIStep):
         self.model_path = model_path
         self.program_set = program_set
         self.batch_size = 1
+        self.lr = 0.0001
         self.build()
         self.load_weights()
 
@@ -45,7 +47,7 @@ class AdditionNPIModel(NPIStep):
 
         f_enc = Sequential(name='f_enc')
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
-        # f_enc.add(Dense(20, W_regularizer=l1(l=L1_COST)))
+        f_enc.add(Dense(35, W_regularizer=l1(l=L1_COST)))
         f_enc.add(Reshape((1, enc_size + argument_size)))
 
         program_embedding = Sequential(name='program_embedding')
@@ -53,11 +55,11 @@ class AdditionNPIModel(NPIStep):
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc, program_embedding], mode='concat'))
-        # f_lstm.add(Activation('relu', name='relu_lstm_0'))
-        # f_lstm.add(LSTM(64, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
-        # f_lstm.add(Activation('relu', name='relu_lstm_1'))
-        f_lstm.add(LSTM(128, return_sequences=False, stateful=True, W_regularizer=l2(l=L2_COST)))
-        # f_lstm.add(Activation('relu', name='relu_lstm_2'))
+        f_lstm.add(Activation('relu', name='relu_lstm_0'))
+        f_lstm.add(LSTM(256, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
+        f_lstm.add(Activation('relu', name='relu_lstm_1'))
+        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(l=L2_COST)))
+        f_lstm.add(Activation('relu', name='relu_lstm_2'))
         # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
 
         f_end = Sequential(name='f_end')
@@ -84,15 +86,11 @@ class AdditionNPIModel(NPIStep):
             f_args.append(f_arg)
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
-        model = Model([input_enc.input, input_arg.input, input_prg.input],
-                      [f_end.output, f_prog.output] + [fa.output for fa in f_args],
-                      name="npi")
-        model.compile(optimizer='rmsprop',
-                      loss=['binary_crossentropy', 'categorical_crossentropy'] + ['categorical_crossentropy'] * len(f_args),
-                      loss_weights=[1, 1] + [1] * len(f_args))
-        plot(model, to_file='model.png', show_shapes=True)
-
-        self.model = model
+        self.model = Model([input_enc.input, input_arg.input, input_prg.input],
+                           [f_end.output, f_prog.output] + [fa.output for fa in f_args],
+                           name="npi")
+        self.compile_model(self.lr)
+        plot(self.model, to_file='model.png', show_shapes=True)
 
     def reset(self):
         super(AdditionNPIModel, self).reset()
@@ -100,7 +98,13 @@ class AdditionNPIModel(NPIStep):
             if type(l) is LSTM:
                 l.reset_states()
 
-    def fit(self, steps_list, epoch=10000):
+    def compile_model(self, lr=0.0001):
+        arg_num = IntegerArguments.max_arg_num
+        optimizer = Adam(lr=lr)
+        loss = ['binary_crossentropy', 'categorical_crossentropy'] + ['categorical_crossentropy'] * arg_num
+        self.model.compile(optimizer=optimizer, loss=loss, loss_weights=[0.25, 0.25] + [1] * arg_num)
+
+    def fit(self, steps_list, epoch=3000):
         """
 
         :param int epoch:
@@ -115,6 +119,7 @@ class AdditionNPIModel(NPIStep):
             if all_ok:
                 break
             all_ok = True
+            losses = []
             for idx, steps_dict in enumerate(steps_list[:40]):
                 question = steps_dict['q']
                 if self.question_test(addition_env, npi_runner, question):
@@ -133,15 +138,18 @@ class AdditionNPIModel(NPIStep):
                     ws.append(w)
 
                 self.reset()
-                losses = []
 
                 for i, (x, y, w) in enumerate(zip(xs, ys, ws)):
                     loss = self.model.train_on_batch(x, y, sample_weight=w)
                     losses.append(loss)
-                print("ep=%2d idx=%s: ave loss %.3f" % (ep, idx, np.average(losses)))
 
+            print("ep=%2d: ave loss %.3f" % (ep, np.average(losses)))
             self.save()
-            print("save model")
+
+            if ep % 50 == 0:
+                self.lr *= 0.95
+                print("Re-Compile Model lr=%s" % self.lr)
+                self.compile_model(self.lr)
 
     def question_test(self, addition_env, npi_runner, question):
         addition_env.reset()
