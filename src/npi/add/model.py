@@ -5,7 +5,7 @@ import os
 import numpy as np
 from keras.engine.topology import Merge, Input, InputLayer
 from keras.engine.training import Model
-from keras.layers.core import Dense, Activation, Reshape
+from keras.layers.core import Dense, Activation, Reshape, RepeatVector
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
 from keras.models import Sequential, model_from_yaml
@@ -34,8 +34,8 @@ class AdditionNPIModel(NPIStep):
         self.load_weights()
 
     def build(self):
-        L1_COST = 0.001
-        L2_COST = 0.001
+        L1_COST = 0.0001
+        L2_COST = 0.0001
         enc_size = self.size_of_env_observation()
         argument_size = IntegerArguments.size_of_arguments
         input_enc = InputLayer(batch_input_shape=(self.batch_size, enc_size), name='input_enc')
@@ -46,8 +46,9 @@ class AdditionNPIModel(NPIStep):
 
         f_enc = Sequential(name='f_enc')
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
-        # f_enc.add(Dense(35, W_regularizer=l1(l=L1_COST)))
-        f_enc.add(Reshape((1, enc_size + argument_size)))
+        f_enc.add(Dense(128, W_regularizer=l1(l=L1_COST)))
+        f_enc.add(Activation('relu', name='relu_enc'))
+        f_enc.add(RepeatVector(1))
 
         program_embedding = Sequential(name='program_embedding')
         program_embedding.add(input_prg)
