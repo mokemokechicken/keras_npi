@@ -74,19 +74,22 @@ class AdditionNPIModel(NPIStep):
         f_prog.add(Activation('softmax', name='softmax_prog'))
         # plot(f_prog, to_file='f_prog.png', show_shapes=True)
 
-        f_arg = Sequential(name='f_arg')
-        f_arg.add(f_lstm)
-        # f_arg.add(Dense(64, W_regularizer=l1(l=L1_COST*0.01)))
-        f_arg.add(Dense(argument_size, W_regularizer=l1(l=L1_COST*0.01)))
-        f_arg.add(Activation('relu', name='relu_arg'))
+        f_args = []
+        for ai in range(1, IntegerArguments.max_arg_num+1):
+            f_arg = Sequential(name='f_arg%s' % ai)
+            f_arg.add(f_lstm)
+            # f_arg.add(Dense(64, W_regularizer=l1(l=L1_COST*0.01)))
+            f_arg.add(Dense(IntegerArguments.depth, W_regularizer=l1(l=L1_COST*0.01)))
+            f_arg.add(Activation('softmax', name='softmax_arg%s' % ai))
+            f_args.append(f_arg)
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
         model = Model([input_enc.input, input_arg.input, input_prg.input],
-                      [f_end.output, f_prog.output, f_arg.output],
+                      [f_end.output, f_prog.output] + [fa.output for fa in f_args],
                       name="npi")
         model.compile(optimizer='rmsprop',
-                      loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'],
-                      loss_weights=[0.25, 0.25, 1.0])
+                      loss=['binary_crossentropy', 'categorical_crossentropy'] + ['categorical_crossentropy'] * len(f_args),
+                      loss_weights=[1, 1] + [1] * len(f_args))
         plot(model, to_file='model.png', show_shapes=True)
 
         self.model = model
@@ -161,16 +164,21 @@ class AdditionNPIModel(NPIStep):
 
     def convert_output(self, p_out: StepOutput):
         y = [np.array((p_out.r,))]
-        weights = [[1]]
+        weights = [[1.]]
         if p_out.program:
-            y += [p_out.program.to_one_hot(PROGRAM_VEC_SIZE), p_out.arguments.values]
-            if p_out.program.args:
-                weights += [[1], [1]]
-            else:
-                weights += [[1], [1e-10]]
+            arg_values = p_out.arguments.values
+            arg_num = len(p_out.program.args or [])
+            y += [p_out.program.to_one_hot(PROGRAM_VEC_SIZE)]
+            weights += [[1.]]
         else:
-            y += [np.zeros((PROGRAM_VEC_SIZE, )), IntegerArguments().values]
-            weights += [[1e-10], [1e-10]]
+            arg_values = IntegerArguments().values
+            arg_num = 0
+            y += [np.zeros((PROGRAM_VEC_SIZE, ))]
+            weights += [[1e-10]]
+
+        for v in arg_values:  # split by each args
+            y += [v]
+        weights += [[1.]] * arg_num + [[1e-10]] * (len(arg_values) - arg_num)
         weights = [np.array(w) for w in weights]
         return [yy.reshape((self.batch_size, -1)) for yy in y], weights
 
