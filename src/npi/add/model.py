@@ -47,7 +47,7 @@ class AdditionNPIModel(NPIStep):
 
         f_enc = Sequential(name='f_enc')
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
-        f_enc.add(Dense(35, W_regularizer=l1(l=L1_COST)))
+        # f_enc.add(Dense(35, W_regularizer=l1(l=L1_COST)))
         f_enc.add(Reshape((1, enc_size + argument_size)))
 
         program_embedding = Sequential(name='program_embedding')
@@ -55,9 +55,9 @@ class AdditionNPIModel(NPIStep):
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc, program_embedding], mode='concat'))
-        f_lstm.add(Activation('relu', name='relu_lstm_0'))
-        f_lstm.add(LSTM(256, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
-        f_lstm.add(Activation('relu', name='relu_lstm_1'))
+        # f_lstm.add(Activation('relu', name='relu_lstm_0'))
+        # f_lstm.add(LSTM(256, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
+        # f_lstm.add(Activation('relu', name='relu_lstm_1'))
         f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(l=L2_COST)))
         f_lstm.add(Activation('relu', name='relu_lstm_2'))
         # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
@@ -112,6 +112,40 @@ class AdditionNPIModel(NPIStep):
         :return:
         """
 
+        def filter_question(condition_func):
+            sub_steps_list = []
+            for steps_dict in steps_list:
+                question = steps_dict['q']
+                if condition_func(question['in1'], question['in2']):
+                    sub_steps_list.append(steps_dict)
+            return sub_steps_list
+
+        q_type = "training questions of a+b < 10"
+        print(q_type)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), epoch=epoch)
+        print("%s is all_ok=%s" % (q_type, all_ok))
+
+        q_type = "training questions of 10 <= a+b < 20"
+        print(q_type)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: 10 <= a + b < 20), epoch=epoch)
+        print("%s is all_ok=%s" % (q_type, all_ok))
+
+        q_type = "training questions of a<10 and b<10"
+        print(q_type)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), epoch=epoch)
+        print("%s is all_ok=%s" % (q_type, all_ok))
+
+        q_type = "training questions of a<100 and b<100"
+        print(q_type)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch)
+        print("%s is all_ok=%s" % (q_type, all_ok))
+
+        q_type = "training questions of ALL"
+        print(q_type)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch)
+        print("%s is all_ok=%s" % (q_type, all_ok))
+
+    def fit_to_subset(self, steps_list, epoch=3000):
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
         npi_runner = TerminalNPIRunner(None, self)
         all_ok = False
@@ -120,7 +154,7 @@ class AdditionNPIModel(NPIStep):
                 break
             all_ok = True
             losses = []
-            for idx, steps_dict in enumerate(steps_list[:40]):
+            for idx, steps_dict in enumerate(steps_list):
                 question = steps_dict['q']
                 if self.question_test(addition_env, npi_runner, question):
                     print("GOOD!: ep=%2d idx=%s :%s" % (ep, idx, question))
@@ -142,14 +176,15 @@ class AdditionNPIModel(NPIStep):
                 for i, (x, y, w) in enumerate(zip(xs, ys, ws)):
                     loss = self.model.train_on_batch(x, y, sample_weight=w)
                     losses.append(loss)
-
-            print("ep=%2d: ave loss %.3f" % (ep, np.average(losses)))
+            if losses:
+                print("ep=%2d: ave loss %.3f" % (ep, np.average(losses)))
             self.save()
 
             if ep % 50 == 0:
                 self.lr *= 0.95
                 print("Re-Compile Model lr=%s" % self.lr)
                 self.compile_model(self.lr)
+        return all_ok
 
     def question_test(self, addition_env, npi_runner, question):
         addition_env.reset()
