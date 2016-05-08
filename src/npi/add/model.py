@@ -16,7 +16,8 @@ import keras.backend as K
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, MAX_PROGRAM_NUM, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
 from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi
-from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput
+from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput, \
+    to_one_hot_array
 from npi.terminal_core import TerminalNPIRunner
 
 __author__ = 'k_morishita'
@@ -24,6 +25,7 @@ __author__ = 'k_morishita'
 
 class AdditionNPIModel(NPIStep):
     model = None
+    f_enc = None
 
     def __init__(self, system: RuntimeSystem, model_path: str=None, program_set: AdditionProgramSet=None):
         self.system = system
@@ -34,8 +36,8 @@ class AdditionNPIModel(NPIStep):
         self.load_weights()
 
     def build(self):
-        L1_COST = 0.0001
-        L2_COST = 0.0001
+        L1_COST = 0.001
+        L2_COST = 0.001
         enc_size = self.size_of_env_observation()
         argument_size = IntegerArguments.size_of_arguments
         input_enc = InputLayer(batch_input_shape=(self.batch_size, enc_size), name='input_enc')
@@ -48,13 +50,17 @@ class AdditionNPIModel(NPIStep):
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
         f_enc.add(Dense(128, W_regularizer=l1(l=L1_COST)))
         f_enc.add(Activation('relu', name='relu_enc'))
-        f_enc.add(RepeatVector(1))
+        self.f_enc = f_enc
 
         program_embedding = Sequential(name='program_embedding')
         program_embedding.add(input_prg)
 
+        f_enc_convert = Sequential(name='f_enc_convert')
+        f_enc_convert.add(f_enc)
+        f_enc_convert.add(RepeatVector(1))
+
         f_lstm = Sequential(name='f_lstm')
-        f_lstm.add(Merge([f_enc, program_embedding], mode='concat'))
+        f_lstm.add(Merge([f_enc_convert, program_embedding], mode='concat'))
         # f_lstm.add(Activation('relu', name='relu_lstm_0'))
         # f_lstm.add(LSTM(256, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
         # f_lstm.add(Activation('relu', name='relu_lstm_1'))
@@ -146,6 +152,8 @@ class AdditionNPIModel(NPIStep):
         print("%s is all_ok=%s" % (q_type, all_ok))
 
     def fit_to_subset(self, steps_list, epoch=3000):
+        self.train_f_enc(steps_list)
+
         learning_rate = 0.0001
         print("Re-Compile Model lr=%s" % learning_rate)
         self.compile_model(learning_rate)
@@ -193,6 +201,42 @@ class AdditionNPIModel(NPIStep):
                 print("Re-Compile Model lr=%s" % learning_rate)
                 self.compile_model(learning_rate)
         return all_ok
+
+    def train_f_enc(self, steps_list):
+        f_add0 = Sequential(name='f_add0')
+        f_add0.add(self.f_enc)
+        f_add0.add(Dense(FIELD_DEPTH, W_regularizer=l1(l=0.001)))
+        f_add0.add(Activation('softmax', name='softmax_add0'))
+
+        f_add1 = Sequential(name='f_add1')
+        f_add1.add(self.f_enc)
+        f_add1.add(Dense(FIELD_DEPTH, W_regularizer=l1(l=0.001)))
+        f_add1.add(Activation('softmax', name='softmax_add1'))
+
+        env_model = Model(self.f_enc.inputs, [f_add0.output, f_add1.output], name="env_model")
+        env_model.compile(optimizer='adam', loss=['categorical_crossentropy']*2)
+
+        for ep in range(1000):
+            losses = []
+            for idx, steps_dict in enumerate(steps_list):
+                prev = None
+                for step in steps_dict['steps']:
+                    x = self.convert_input(step.input)[:2]
+                    env_values = step.input.env.reshape((4, -1))
+                    in1 = np.clip(env_values[0].argmax() - 1, 0, 9)
+                    in2 = np.clip(env_values[1].argmax() - 1, 0, 9)
+                    carry = np.clip(env_values[2].argmax() - 1, 0, 9)
+                    y_num = in1 + in2 + carry
+                    now = (in1, in2, carry)
+                    if prev == now:
+                        continue
+                    prev = now
+                    y0 = to_one_hot_array((y_num %  10)+1, FIELD_DEPTH)
+                    y1 = to_one_hot_array((y_num // 10)+1, FIELD_DEPTH)
+                    y = [yy.reshape((self.batch_size, -1)) for yy in [y0, y1]]
+                    loss = env_model.train_on_batch(x, y)
+                    losses.append(loss)
+            print("ep %3d: loss=%.2f" % (ep, np.average(losses)))
 
     def question_test(self, addition_env, npi_runner, question):
         addition_env.reset()
