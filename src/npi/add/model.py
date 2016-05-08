@@ -100,7 +100,7 @@ class AdditionNPIModel(NPIStep):
             if type(l) is LSTM:
                 l.reset_states()
 
-    def fit(self, steps_list, epoch=100):
+    def fit(self, steps_list, epoch=10000):
         """
 
         :param int epoch:
@@ -110,13 +110,17 @@ class AdditionNPIModel(NPIStep):
 
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
         npi_runner = TerminalNPIRunner(None, self)
-
+        all_ok = False
         for ep in range(1, epoch+1):
+            if all_ok:
+                break
+            all_ok = True
             for idx, steps_dict in enumerate(steps_list[:40]):
                 question = steps_dict['q']
                 if self.question_test(addition_env, npi_runner, question):
                     print("GOOD!: ep=%2d idx=%s :%s" % (ep, idx, question))
                     continue
+                all_ok = False
 
                 steps = steps_dict['steps']
                 xs = []
@@ -128,23 +132,16 @@ class AdditionNPIModel(NPIStep):
                     ys.append(y)
                     ws.append(w)
 
-                it = -1
-                while True:
-                    it += 1
-                    self.reset()
-                    losses = []
+                self.reset()
+                losses = []
 
-                    for i, (x, y, w) in enumerate(zip(xs, ys, ws)):
-                        loss = self.model.train_on_batch(x, y, sample_weight=w)
-                        losses.append(loss)
-                    print("ep=%2d idx=%s %s: ave loss %.3f" % (ep, idx, it, np.average(losses)))
+                for i, (x, y, w) in enumerate(zip(xs, ys, ws)):
+                    loss = self.model.train_on_batch(x, y, sample_weight=w)
+                    losses.append(loss)
+                print("ep=%2d idx=%s: ave loss %.3f" % (ep, idx, np.average(losses)))
 
-                    if it % 3 == 0 and self.question_test(addition_env, npi_runner, question):
-                        break
-
-                if idx % 10 == 0:
-                    self.save()
-                    print("save model")
+            self.save()
+            print("save model")
 
     def question_test(self, addition_env, npi_runner, question):
         addition_env.reset()
