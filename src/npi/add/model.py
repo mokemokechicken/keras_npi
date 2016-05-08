@@ -76,8 +76,8 @@ class AdditionNPIModel(NPIStep):
 
         f_arg = Sequential(name='f_arg')
         f_arg.add(f_lstm)
-        f_arg.add(Dense(20, W_regularizer=l1(l=L1_COST)))
-        f_arg.add(Dense(argument_size, W_regularizer=l1(l=L1_COST)))
+        f_arg.add(Dense(20, W_regularizer=l2(l=L2_COST*0.01)))
+        f_arg.add(Dense(argument_size, W_regularizer=l2(l=L2_COST*0.01)))
         f_arg.add(Activation('relu', name='relu_arg'))
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
 
@@ -86,7 +86,7 @@ class AdditionNPIModel(NPIStep):
                       name="npi")
         model.compile(optimizer='rmsprop',
                       loss=['binary_crossentropy', 'categorical_crossentropy', 'mean_squared_error'],
-                      loss_weights=[1.0, 0.2, 1.0])
+                      loss_weights=[0.25, 0.1, 1.0])
         plot(model, to_file='model.png', show_shapes=True)
 
         self.model = model
@@ -114,18 +114,12 @@ class AdditionNPIModel(NPIStep):
                 steps = steps_dict['steps']
                 xs = []
                 ys = []
+                ws = []
                 for step in steps:
-                    # INPUT
                     xs.append(self.convert_input(step.input))
-                    # OUTPUT
-                    o = step.output
-                    y = [np.array((o.r, ))]
-                    if o.program:
-                        y += [o.program.to_one_hot(PROGRAM_VEC_SIZE), o.arguments.values]
-                    else:
-                        y += [np.zeros((PROGRAM_VEC_SIZE, )), IntegerArguments().values]
-                    y = [yy.reshape((self.batch_size, -1)) for yy in y]
+                    y, w = self.convert_output(step.output)
                     ys.append(y)
+                    ws.append(w)
 
                 it = 0
                 while True:
@@ -133,12 +127,12 @@ class AdditionNPIModel(NPIStep):
                     self.reset()
                     losses = []
 
-                    for i, (x, y) in enumerate(zip(xs, ys)):
-                        loss = self.model.train_on_batch(x, y)
+                    for i, (x, y, w) in enumerate(zip(xs, ys, ws)):
+                        loss = self.model.train_on_batch(x, y, sample_weight=w)
                         losses.append(loss)
                     print("ep: %2d %s %s: ave loss %.3f" % (ep, idx, it, np.average(losses)))
 
-                    if it % 100 == 0:
+                    if it % 10 == 0:
                         self.save()
                         print("save model")
                         addition_env.reset()
@@ -155,10 +149,25 @@ class AdditionNPIModel(NPIStep):
                     self.save()
                     print("save model")
 
-    def convert_input(self, params: StepInput):
-        x_pg = np.array((params.program.program_id,))
-        x = [xx.reshape((self.batch_size, -1)) for xx in (params.env, params.arguments.values, x_pg)]
+    def convert_input(self, p_in: StepInput):
+        x_pg = np.array((p_in.program.program_id,))
+        x = [xx.reshape((self.batch_size, -1)) for xx in (p_in.env, p_in.arguments.values, x_pg)]
         return x
+
+    def convert_output(self, p_out: StepOutput):
+        y = [np.array((p_out.r,))]
+        weights = [[1]]
+        if p_out.program:
+            y += [p_out.program.to_one_hot(PROGRAM_VEC_SIZE), p_out.arguments.values]
+            if p_out.program.args:
+                weights += [[1], [1]]
+            else:
+                weights += [[1], [1e-10]]
+        else:
+            y += [np.zeros((PROGRAM_VEC_SIZE, )), IntegerArguments().values]
+            weights += [[1e-10], [1e-10]]
+        weights = [np.array(w) for w in weights]
+        return [yy.reshape((self.batch_size, -1)) for yy in y], weights
 
     def step(self, env_observation: np.ndarray, pg: Program, arguments: IntegerArguments) -> StepOutput:
         x = self.convert_input(StepInput(env_observation, pg, arguments))

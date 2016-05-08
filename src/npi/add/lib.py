@@ -44,12 +44,13 @@ class AdditionEnv:
             self.screen[1, -(i+1)] = int(s) + 1
 
     def move_pointer(self, row, left_or_right):
-        self.pointers[row] += 1 if left_or_right == 1 else -1  # LEFT is 0, RIGHT is 1
-        self.pointers[row] %= self.screen.width
+        if 0 <= row < len(self.pointers):
+            self.pointers[row] += 1 if left_or_right == 1 else -1  # LEFT is 0, RIGHT is 1
+            self.pointers[row] %= self.screen.width
 
     def write(self, row, ch):
-        row %= self.screen.height
-        self.screen[row, self.pointers[row]] = ch
+        if 0 <= row < self.screen.height and 0 <= ch < self.num_chars:
+            self.screen[row, self.pointers[row]] = ch
 
     def get_output(self):
         s = ""
@@ -87,6 +88,7 @@ class WriteProgram(Program):
 
 
 class AdditionProgramSet:
+    NOP = Program('NOP')
     MOVE_PTR = MovePtrProgram('MOVE_PTR', 4, 2)  # PTR_KIND(4), LEFT_OR_RIGHT(2)
     WRITE = WriteProgram('WRITE', 2, 10)       # CARRY_OR_OUT(2), DIGITS(10)
     ADD = Program('ADD')
@@ -98,6 +100,7 @@ class AdditionProgramSet:
     def __init__(self):
         self.map = {}
         self.program_id = 0
+        self.register(self.NOP)
         self.register(self.MOVE_PTR)
         self.register(self.WRITE)
         self.register(self.ADD)
@@ -232,10 +235,18 @@ def create_char_map():
 
 
 def create_questions(num=100, max_number=10000):
-    questions = [
-        dict(in1=1, in2=4),
-        dict(in1=30, in2=50),
-        dict(in1=36, in2=85),
+    questions = []
+    for in1 in range(1, 10):
+        for in2 in range(10):
+            questions.append(dict(in1=in1, in2=in2))
+
+    for _ in range(100):
+        questions.append(dict(in1=int(random() * 100), in2=int(random() * 100)))
+
+    for _ in range(100):
+        questions.append(dict(in1=int(random() * 1000), in2=int(random() * 1000)))
+
+    questions += [
         dict(in1=104, in2=902),
     ]
 
