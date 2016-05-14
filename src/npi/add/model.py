@@ -108,11 +108,11 @@ class AdditionNPIModel(NPIStep):
             if type(l) is LSTM:
                 l.reset_states()
 
-    def compile_model(self, lr=0.0001):
+    def compile_model(self, lr=0.0001, arg_weight=1.):
         arg_num = IntegerArguments.max_arg_num
         optimizer = Adam(lr=lr)
         loss = ['binary_crossentropy', 'categorical_crossentropy'] + ['categorical_crossentropy'] * arg_num
-        self.model.compile(optimizer=optimizer, loss=loss, loss_weights=[0.25, 0.25] + [1] * arg_num)
+        self.model.compile(optimizer=optimizer, loss=loss, loss_weights=[0.25, 0.25] + [arg_weight] * arg_num)
 
     def fit(self, steps_list, epoch=3000):
         """
@@ -136,28 +136,30 @@ class AdditionNPIModel(NPIStep):
 
         q_type = "training questions of a+b < 10"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), epoch=epoch, pass_rate=0.8)
-        print("%s is all_ok=%s" % (q_type, all_ok))
+        pr = 0.8
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), epoch=epoch, pass_rate=pr)
+        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<10 and b< 10 and 10 <= a+b"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), epoch=epoch, pass_rate=0.8)
-        print("%s is all_ok=%s" % (q_type, all_ok))
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), epoch=epoch, pass_rate=pr)
+        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<10 and b<10"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), epoch=epoch, pass_rate=0.8)
-        print("%s is all_ok=%s" % (q_type, all_ok))
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), epoch=epoch, pass_rate=pr)
+        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<100 and b<100"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch, pass_rate=0.8)
-        print("%s is all_ok=%s" % (q_type, all_ok))
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch, pass_rate=pr)
+        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of ALL"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=1.0)
-        print("%s is all_ok=%s" % (q_type, all_ok))
+        pr = 1.0
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=pr)
+        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
     def fit_to_subset(self, steps_list, epoch=3000, pass_rate=1.0):
         learning_rate = 0.0001
@@ -168,14 +170,15 @@ class AdditionNPIModel(NPIStep):
             learning_rate *= 0.95
         return False
 
-    def do_learn(self, steps_list, epoch, learning_rate=None, pass_rate=1.0):
+    def do_learn(self, steps_list, epoch, learning_rate=None, pass_rate=1.0, arg_weight=1.):
         if learning_rate is not None:
-            self.update_learning_rate(learning_rate)
+            self.update_learning_rate(learning_rate, arg_weight)
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
         npi_runner = TerminalNPIRunner(None, self)
         last_weights = None
         correct_count = Counter()
         for ep in range(1, epoch+1):
+            correct_new = wrong_new = 0
             losses = []
             ok_rate = []
             np.random.shuffle(steps_list)
@@ -183,6 +186,8 @@ class AdditionNPIModel(NPIStep):
                 question = copy(steps_dict['q'])
                 question_key = tuple([(k, question[k]) for k in sorted(question)])
                 if self.question_test(addition_env, npi_runner, question):
+                    if correct_count[question_key] == 0:
+                        correct_new += 1
                     correct_count[question_key] += 1
                     print("GOOD!: ep=%2d idx=%s :%s CorrectCount=%s" % (ep, idx, question, correct_count[question_key]))
                     ok_rate.append(1)
@@ -193,6 +198,7 @@ class AdditionNPIModel(NPIStep):
                     if correct_count[question_key] > 0:
                         print("Degraded: ep=%2d idx=%s :%s CorrectCount=%s -> 0" % (ep, idx, question, correct_count[question_key]))
                         correct_count[question_key] = 0
+                        wrong_new += 1
 
                 steps = steps_dict['steps']
                 xs = []
@@ -215,16 +221,22 @@ class AdditionNPIModel(NPIStep):
                     losses.append(loss)
                     last_weights = self.model.get_weights()
             if losses:
-                print("ep=%2d: ok_rate=%.2f%% ave loss %s (%s samples)" % (ep, np.average(ok_rate)*100, np.average(losses), len(steps_list)))
+                print("ep=%2d: ok_rate=%.2f%% (+%s -%s): ave loss %s (%s samples)" %
+                      (ep, np.average(ok_rate)*100, correct_new, wrong_new, np.average(losses), len(steps_list)))
                 # self.print_weights()
+                if np.average(losses) < 0.000001:
+                    print("average loss < 0.0000001, update arg_weight")
+                    arg_weight *= 2
+                    self.update_learning_rate(learning_rate, arg_weight)
+                print("=" * 80)
             self.save()
             if np.average(ok_rate) >= pass_rate:
                 return True
         return False
 
-    def update_learning_rate(self, learning_rate):
-        print("Re-Compile Model lr=%s" % learning_rate)
-        self.compile_model(learning_rate)
+    def update_learning_rate(self, learning_rate, arg_weight=1.):
+        print("Re-Compile Model lr=%s aw=%s" % (learning_rate, arg_weight))
+        self.compile_model(learning_rate, arg_weight=arg_weight)
 
     def train_f_enc(self, steps_list, epoch=50):
         print("training f_enc")
@@ -261,7 +273,7 @@ class AdditionNPIModel(NPIStep):
                     y = [yy.reshape((self.batch_size, -1)) for yy in [y0, y1]]
                     loss = env_model.train_on_batch(x, y)
                     losses.append(loss)
-            print("ep %3d: loss=%.2f" % (ep, np.average(losses)))
+            print("ep %3d: loss=%s" % (ep, np.average(losses)))
 
     def question_test(self, addition_env, npi_runner, question):
         addition_env.reset()
