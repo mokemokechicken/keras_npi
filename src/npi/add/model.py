@@ -133,7 +133,7 @@ class AdditionNPIModel(NPIStep):
 
         self.print_weights()
         if not self.weight_loaded:
-            self.train_f_enc(filter_question(lambda a, b: a < 100 and b < 100), epoch=100)
+            self.train_f_enc(filter_question(lambda a, b: 10 <= a < 100 and 10 <= b < 100), epoch=100)
         self.f_enc.trainable = False
 
         q_type = "training questions of a+b < 10"
