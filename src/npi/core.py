@@ -127,3 +127,8 @@ class RuntimeSystem:
         else:
             print(message)
 
+
+def to_one_hot_array(idx, size, dtype=np.int8):
+    ret = np.zeros((size, ), dtype=dtype)
+    ret[idx] = 1
+    return ret
