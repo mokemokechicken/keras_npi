@@ -4,6 +4,7 @@ import os
 from collections import Counter
 from copy import copy
 
+import math
 import numpy as np
 from keras.engine.topology import Merge, Input, InputLayer
 from keras.engine.training import Model
@@ -50,7 +51,7 @@ class AdditionNPIModel(NPIStep):
 
         f_enc = Sequential(name='f_enc')
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
-        f_enc.add(Dense(128))
+        f_enc.add(Dense(256))
         f_enc.add(Dense(32))
         f_enc.add(Activation('relu', name='relu_enc'))
         self.f_enc = f_enc
@@ -76,7 +77,7 @@ class AdditionNPIModel(NPIStep):
         f_end.add(f_lstm)
         f_end.add(Dense(10))
         f_end.add(Dense(1))
-        f_end.add(Activation('hard_sigmoid', name='sigmoid_end'))
+        f_end.add(Activation('hard_sigmoid', name='hard_sigmoid_end'))
         # plot(f_end, to_file='f_end.png', show_shapes=True)
 
         f_prog = Sequential(name='f_prog')
@@ -132,7 +133,8 @@ class AdditionNPIModel(NPIStep):
 
         self.print_weights()
         if not self.weight_loaded:
-            self.train_f_enc(filter_question(lambda a, b: a < 10 and b < 10), epoch=100)
+            self.train_f_enc(filter_question(lambda a, b: a < 100 and b < 100), epoch=100)
+        self.f_enc.trainable = False
 
         q_type = "training questions of a+b < 10"
         print(q_type)
@@ -142,16 +144,19 @@ class AdditionNPIModel(NPIStep):
 
         q_type = "training questions of a<10 and b< 10 and 10 <= a+b"
         print(q_type)
+        pr = 0.8
         all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), epoch=epoch, pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<10 and b<10"
         print(q_type)
+        pr = 0.8
         all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), epoch=epoch, pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<100 and b<100"
         print(q_type)
+        pr = 0.8
         all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch, pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
@@ -164,11 +169,15 @@ class AdditionNPIModel(NPIStep):
     def fit_to_subset(self, steps_list, epoch=3000, pass_rate=1.0):
         learning_rate = 0.0001
         for i in range(30):
-            all_ok = self.do_learn(steps_list, 30, learning_rate=learning_rate, pass_rate=pass_rate)
+            all_ok = self.do_learn(steps_list, 30, learning_rate=learning_rate, pass_rate=pass_rate, arg_weight=1.)
             if all_ok:
                 return True
             learning_rate *= 0.95
         return False
+
+    @staticmethod
+    def dict_to_str(d):
+        return str(tuple([(k, d[k]) for k in sorted(d)]))
 
     def do_learn(self, steps_list, epoch, learning_rate=None, pass_rate=1.0, arg_weight=1.):
         if learning_rate is not None:
@@ -177,6 +186,8 @@ class AdditionNPIModel(NPIStep):
         npi_runner = TerminalNPIRunner(None, self)
         last_weights = None
         correct_count = Counter()
+        no_change_count = 0
+        last_loss = 1000
         for ep in range(1, epoch+1):
             correct_new = wrong_new = 0
             losses = []
@@ -184,19 +195,19 @@ class AdditionNPIModel(NPIStep):
             np.random.shuffle(steps_list)
             for idx, steps_dict in enumerate(steps_list):
                 question = copy(steps_dict['q'])
-                question_key = tuple([(k, question[k]) for k in sorted(question)])
+                question_key = self.dict_to_str(question)
                 if self.question_test(addition_env, npi_runner, question):
                     if correct_count[question_key] == 0:
                         correct_new += 1
                     correct_count[question_key] += 1
-                    print("GOOD!: ep=%2d idx=%s :%s CorrectCount=%s" % (ep, idx, question, correct_count[question_key]))
+                    print("GOOD!: ep=%2d idx=%3d :%s CorrectCount=%s" % (ep, idx, self.dict_to_str(question), correct_count[question_key]))
                     ok_rate.append(1)
-                    if correct_count[question_key] >= 5 and correct_count[question_key] % 5 != 1:
+                    if int(math.sqrt(correct_count[question_key])) ** 2 != correct_count[question_key]:
                         continue
                 else:
                     ok_rate.append(0)
                     if correct_count[question_key] > 0:
-                        print("Degraded: ep=%2d idx=%s :%s CorrectCount=%s -> 0" % (ep, idx, question, correct_count[question_key]))
+                        print("Degraded: ep=%2d idx=%3d :%s CorrectCount=%s -> 0" % (ep, idx, self.dict_to_str(question), correct_count[question_key]))
                         correct_count[question_key] = 0
                         wrong_new += 1
 
@@ -221,13 +232,19 @@ class AdditionNPIModel(NPIStep):
                     losses.append(loss)
                     last_weights = self.model.get_weights()
             if losses:
+                cur_loss = np.average(losses)
                 print("ep=%2d: ok_rate=%.2f%% (+%s -%s): ave loss %s (%s samples)" %
-                      (ep, np.average(ok_rate)*100, correct_new, wrong_new, np.average(losses), len(steps_list)))
+                      (ep, np.average(ok_rate)*100, correct_new, wrong_new, cur_loss, len(steps_list)))
                 # self.print_weights()
-                if np.average(losses) < 0.000001:
-                    print("average loss < 0.0000001, update arg_weight")
-                    arg_weight *= 2
-                    self.update_learning_rate(learning_rate, arg_weight)
+                if correct_new + wrong_new == 0:
+                    no_change_count += 1
+                else:
+                    no_change_count = 0
+
+                if math.fabs(1 - cur_loss/last_loss) < 0.001 and no_change_count > 5:
+                    print("math.fabs(1 - cur_loss/last_loss) < 0.001 and no_change_count > 5:")
+                    return False
+                last_loss = cur_loss
                 print("=" * 80)
             self.save()
             if np.average(ok_rate) >= pass_rate:
