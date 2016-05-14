@@ -112,7 +112,7 @@ def show_env_to_terminal(terminal, env):
 
 
 class TerminalNPIRunner:
-    def __init__(self, terminal: Terminal, model: NPIStep=None, recording=True, max_depth=5, max_step=1000):
+    def __init__(self, terminal: Terminal, model: NPIStep=None, recording=True, max_depth=10, max_step=1000):
         self.terminal = terminal
         self.model = model
         self.steps = 0

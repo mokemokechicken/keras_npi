@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 import os
+from collections import Counter
+from copy import copy
 
 import numpy as np
 from keras.engine.topology import Merge, Input, InputLayer
@@ -8,13 +10,15 @@ from keras.engine.training import Model
 from keras.layers.core import Dense, Activation, Reshape, RepeatVector
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
+from keras.layers.wrappers import TimeDistributed
 from keras.models import Sequential, model_from_yaml
+from keras.objectives import categorical_crossentropy
 from keras.optimizers import Adam
 from keras.regularizers import l1, l2
 from keras.utils.visualize_util import plot
 import keras.backend as K
 
-from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, MAX_PROGRAM_NUM, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
+from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
 from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi
 from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput, \
     to_one_hot_array
@@ -33,22 +37,21 @@ class AdditionNPIModel(NPIStep):
         self.program_set = program_set
         self.batch_size = 1
         self.build()
+        self.weight_loaded = False
         self.load_weights()
 
     def build(self):
-        L1_COST = 0.001
-        L2_COST = 0.001
         enc_size = self.size_of_env_observation()
         argument_size = IntegerArguments.size_of_arguments
         input_enc = InputLayer(batch_input_shape=(self.batch_size, enc_size), name='input_enc')
         input_arg = InputLayer(batch_input_shape=(self.batch_size, argument_size), name='input_arg')
-        input_prg = Embedding(input_dim=MAX_PROGRAM_NUM, output_dim=PROGRAM_VEC_SIZE, input_length=1,
-                              W_regularizer=l1(l=L1_COST),
+        input_prg = Embedding(input_dim=PROGRAM_VEC_SIZE, output_dim=PROGRAM_KEY_VEC_SIZE, input_length=1,
                               batch_input_shape=(self.batch_size, 1))
 
         f_enc = Sequential(name='f_enc')
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
-        f_enc.add(Dense(128, W_regularizer=l1(l=L1_COST)))
+        f_enc.add(Dense(128))
+        f_enc.add(Dense(32))
         f_enc.add(Activation('relu', name='relu_enc'))
         self.f_enc = f_enc
 
@@ -62,23 +65,24 @@ class AdditionNPIModel(NPIStep):
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc_convert, program_embedding], mode='concat'))
         # f_lstm.add(Activation('relu', name='relu_lstm_0'))
-        # f_lstm.add(LSTM(256, return_sequences=True, stateful=True, W_regularizer=l2(l=L2_COST)))
-        # f_lstm.add(Activation('relu', name='relu_lstm_1'))
-        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(l=L2_COST)))
+        f_lstm.add(LSTM(256, return_sequences=False, stateful=True))
+        f_lstm.add(Activation('relu', name='relu_lstm_1'))
+        f_lstm.add(RepeatVector(1))
+        f_lstm.add(LSTM(256, return_sequences=False, stateful=True))
         f_lstm.add(Activation('relu', name='relu_lstm_2'))
         # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
 
         f_end = Sequential(name='f_end')
         f_end.add(f_lstm)
-        f_end.add(Dense(10, W_regularizer=l1(l=L1_COST)))
-        f_end.add(Dense(1, W_regularizer=l1(l=L1_COST)))
-        f_end.add(Activation('sigmoid', name='sigmoid_end'))
+        f_end.add(Dense(10))
+        f_end.add(Dense(1))
+        f_end.add(Activation('hard_sigmoid', name='sigmoid_end'))
         # plot(f_end, to_file='f_end.png', show_shapes=True)
 
         f_prog = Sequential(name='f_prog')
         f_prog.add(f_lstm)
-        f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE, W_regularizer=l1(l=L1_COST)))
-        f_prog.add(Dense(PROGRAM_VEC_SIZE, W_regularizer=l1(l=L1_COST)))
+        f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE))
+        f_prog.add(Dense(PROGRAM_VEC_SIZE))
         f_prog.add(Activation('softmax', name='softmax_prog'))
         # plot(f_prog, to_file='f_prog.png', show_shapes=True)
 
@@ -86,8 +90,8 @@ class AdditionNPIModel(NPIStep):
         for ai in range(1, IntegerArguments.max_arg_num+1):
             f_arg = Sequential(name='f_arg%s' % ai)
             f_arg.add(f_lstm)
-            f_arg.add(Dense(32, W_regularizer=l1(l=L1_COST*0.01)))
-            f_arg.add(Dense(IntegerArguments.depth, W_regularizer=l1(l=L1_COST*0.01)))
+            f_arg.add(Dense(32))
+            f_arg.add(Dense(IntegerArguments.depth))
             f_arg.add(Activation('softmax', name='softmax_arg%s' % ai))
             f_args.append(f_arg)
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
@@ -126,56 +130,69 @@ class AdditionNPIModel(NPIStep):
                     sub_steps_list.append(steps_dict)
             return sub_steps_list
 
+        self.print_weights()
+        if not self.weight_loaded:
+            self.train_f_enc(filter_question(lambda a, b: a < 10 and b < 10), epoch=100)
+
         q_type = "training questions of a+b < 10"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), epoch=epoch)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), epoch=epoch, pass_rate=0.8)
         print("%s is all_ok=%s" % (q_type, all_ok))
 
         q_type = "training questions of a<10 and b< 10 and 10 <= a+b"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), epoch=epoch)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), epoch=epoch, pass_rate=0.8)
         print("%s is all_ok=%s" % (q_type, all_ok))
 
         q_type = "training questions of a<10 and b<10"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), epoch=epoch)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), epoch=epoch, pass_rate=0.8)
         print("%s is all_ok=%s" % (q_type, all_ok))
 
         q_type = "training questions of a<100 and b<100"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch, pass_rate=0.8)
         print("%s is all_ok=%s" % (q_type, all_ok))
 
         q_type = "training questions of ALL"
         print(q_type)
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=1.0)
         print("%s is all_ok=%s" % (q_type, all_ok))
 
-    def fit_to_subset(self, steps_list, epoch=3000):
-        self.train_f_enc(steps_list)
-
+    def fit_to_subset(self, steps_list, epoch=3000, pass_rate=1.0):
         learning_rate = 0.0001
-        print("Re-Compile Model lr=%s" % learning_rate)
-        self.compile_model(learning_rate)
+        for i in range(30):
+            all_ok = self.do_learn(steps_list, 30, learning_rate=learning_rate, pass_rate=pass_rate)
+            if all_ok:
+                return True
+            learning_rate *= 0.95
+        return False
 
+    def do_learn(self, steps_list, epoch, learning_rate=None, pass_rate=1.0):
+        if learning_rate is not None:
+            self.update_learning_rate(learning_rate)
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
         npi_runner = TerminalNPIRunner(None, self)
-        all_ok = False
+        last_weights = None
+        correct_count = Counter()
         for ep in range(1, epoch+1):
-            if all_ok:
-                break
-            all_ok = True
             losses = []
             ok_rate = []
             np.random.shuffle(steps_list)
             for idx, steps_dict in enumerate(steps_list):
-                question = steps_dict['q']
+                question = copy(steps_dict['q'])
+                question_key = tuple([(k, question[k]) for k in sorted(question)])
                 if self.question_test(addition_env, npi_runner, question):
-                    print("GOOD!: ep=%2d idx=%s :%s" % (ep, idx, question))
+                    correct_count[question_key] += 1
+                    print("GOOD!: ep=%2d idx=%s :%s CorrectCount=%s" % (ep, idx, question, correct_count[question_key]))
                     ok_rate.append(1)
-                    continue
-                ok_rate.append(0)
-                all_ok = False
+                    if correct_count[question_key] >= 5 and correct_count[question_key] % 5 != 1:
+                        continue
+                else:
+                    ok_rate.append(0)
+                    if correct_count[question_key] > 0:
+                        print("Degraded: ep=%2d idx=%s :%s CorrectCount=%s -> 0" % (ep, idx, question, correct_count[question_key]))
+                        correct_count[question_key] = 0
 
                 steps = steps_dict['steps']
                 xs = []
@@ -191,32 +208,40 @@ class AdditionNPIModel(NPIStep):
 
                 for i, (x, y, w) in enumerate(zip(xs, ys, ws)):
                     loss = self.model.train_on_batch(x, y, sample_weight=w)
+                    if not np.isfinite(loss):
+                        print("Loss is not finite!, Last Input=%s" % ([i, (x, y, w)]))
+                        self.print_weights(last_weights, detail=True)
+                        raise RuntimeError("Loss is not finite!")
                     losses.append(loss)
+                    last_weights = self.model.get_weights()
             if losses:
-                print("ep=%2d: ok_rate=%.2f%% ave loss %.3f (%s samples)" % (ep, np.average(ok_rate)*100, np.average(losses), len(steps_list)))
+                print("ep=%2d: ok_rate=%.2f%% ave loss %s (%s samples)" % (ep, np.average(ok_rate)*100, np.average(losses), len(steps_list)))
+                # self.print_weights()
             self.save()
+            if np.average(ok_rate) >= pass_rate:
+                return True
+        return False
 
-            if ep % 100 == 0:
-                learning_rate *= 0.95
-                print("Re-Compile Model lr=%s" % learning_rate)
-                self.compile_model(learning_rate)
-        return all_ok
+    def update_learning_rate(self, learning_rate):
+        print("Re-Compile Model lr=%s" % learning_rate)
+        self.compile_model(learning_rate)
 
-    def train_f_enc(self, steps_list):
+    def train_f_enc(self, steps_list, epoch=50):
+        print("training f_enc")
         f_add0 = Sequential(name='f_add0')
         f_add0.add(self.f_enc)
-        f_add0.add(Dense(FIELD_DEPTH, W_regularizer=l1(l=0.001)))
+        f_add0.add(Dense(FIELD_DEPTH))
         f_add0.add(Activation('softmax', name='softmax_add0'))
 
         f_add1 = Sequential(name='f_add1')
         f_add1.add(self.f_enc)
-        f_add1.add(Dense(FIELD_DEPTH, W_regularizer=l1(l=0.001)))
+        f_add1.add(Dense(FIELD_DEPTH))
         f_add1.add(Activation('softmax', name='softmax_add1'))
 
         env_model = Model(self.f_enc.inputs, [f_add0.output, f_add1.output], name="env_model")
         env_model.compile(optimizer='adam', loss=['categorical_crossentropy']*2)
 
-        for ep in range(1000):
+        for ep in range(epoch):
             losses = []
             for idx, steps_dict in enumerate(steps_list):
                 prev = None
@@ -289,6 +314,15 @@ class AdditionNPIModel(NPIStep):
     def load_weights(self):
         if os.path.exists(self.model_path):
             self.model.load_weights(self.model_path)
+            self.weight_loaded = True
+
+    def print_weights(self, weights=None, detail=False):
+        weights = weights or self.model.get_weights()
+        for w in weights:
+            print("w%s: sum(w)=%s, ave(w)=%s" % (w.shape, np.sum(w), np.average(w)))
+        if detail:
+            for w in weights:
+                print("%s: %s" % (w.shape, w))
 
     @staticmethod
     def size_of_env_observation():
