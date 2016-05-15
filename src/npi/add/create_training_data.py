@@ -45,3 +45,4 @@ if __name__ == '__main__':
         num_data = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
         log_filename = sys.argv[3] if len(sys.argv) > 3 else 'result.log'
     curses.wrapper(main, output_filename, num_data, ResultLogger(log_filename))
+    print("create %d training data" % num_data)

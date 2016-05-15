@@ -20,7 +20,7 @@ from keras.utils.visualize_util import plot
 import keras.backend as K
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
-from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi
+from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi, create_questions
 from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput, \
     to_one_hot_array
 from npi.terminal_core import TerminalNPIRunner
@@ -131,7 +131,7 @@ class AdditionNPIModel(NPIStep):
                     sub_steps_list.append(steps_dict)
             return sub_steps_list
 
-        self.print_weights()
+        # self.print_weights()
         if not self.weight_loaded:
             self.train_f_enc(filter_question(lambda a, b: 10 <= a < 100 and 10 <= b < 100), epoch=100)
         self.f_enc.trainable = False
@@ -160,26 +160,47 @@ class AdditionNPIModel(NPIStep):
         all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch, pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
-        q_type = "training questions of ALL"
-        print(q_type)
-        pr = 1.0
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=pr)
-        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
+        while True:
+            print("test all type of questions")
+            cc, wc = self.test_to_subset(create_questions(1000))
+            print("Accuracy %s(OK=%d, NG=%d)" % (cc/(cc+wc), cc, wc))
+            if wc == 0:
+                break
 
-    def fit_to_subset(self, steps_list, epoch=3000, pass_rate=1.0):
+            q_type = "training questions of ALL"
+            print(q_type)
+            pr = 1.0
+            self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=pr)
+            all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=pr, skip_correct=True)
+            print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
+
+    def fit_to_subset(self, steps_list, epoch=3000, pass_rate=1.0, skip_correct=False):
         learning_rate = 0.0001
         for i in range(30):
-            all_ok = self.do_learn(steps_list, 30, learning_rate=learning_rate, pass_rate=pass_rate, arg_weight=1.)
+            all_ok = self.do_learn(steps_list, 30, learning_rate=learning_rate, pass_rate=pass_rate, arg_weight=1.,
+                                   skip_correct=skip_correct)
             if all_ok:
                 return True
             learning_rate *= 0.95
         return False
 
+    def test_to_subset(self, questions):
+        addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
+        npi_runner = TerminalNPIRunner(None, self)
+        correct_count = wrong_count = 0
+        for idx, question in enumerate(questions):
+            question = copy(question)
+            if self.question_test(addition_env, npi_runner, question):
+                correct_count += 1
+            else:
+                wrong_count += 1
+        return correct_count, wrong_count
+
     @staticmethod
     def dict_to_str(d):
         return str(tuple([(k, d[k]) for k in sorted(d)]))
 
-    def do_learn(self, steps_list, epoch, learning_rate=None, pass_rate=1.0, arg_weight=1.):
+    def do_learn(self, steps_list, epoch, learning_rate=None, pass_rate=1.0, arg_weight=1., skip_correct=False):
         if learning_rate is not None:
             self.update_learning_rate(learning_rate, arg_weight)
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
@@ -202,7 +223,7 @@ class AdditionNPIModel(NPIStep):
                     correct_count[question_key] += 1
                     print("GOOD!: ep=%2d idx=%3d :%s CorrectCount=%s" % (ep, idx, self.dict_to_str(question), correct_count[question_key]))
                     ok_rate.append(1)
-                    if int(math.sqrt(correct_count[question_key])) ** 2 != correct_count[question_key]:
+                    if skip_correct or int(math.sqrt(correct_count[question_key])) ** 2 != correct_count[question_key]:
                         continue
                 else:
                     ok_rate.append(0)
