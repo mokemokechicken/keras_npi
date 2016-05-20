@@ -6,6 +6,8 @@ Implementation of [Neural Programmer-Interpreters](http://arxiv.org/abs/1511.062
 How to Demo
 ===========
 
+<iframe width="420" height="315" src="https://www.youtube.com/embed/s7PuBqwI2YA" frameborder="0" allowfullscreen></iframe>
+
 requirement
 -----------
 
