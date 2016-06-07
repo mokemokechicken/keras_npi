@@ -52,8 +52,9 @@ class AdditionNPIModel(NPIStep):
         f_enc = Sequential(name='f_enc')
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
         f_enc.add(Dense(256))
+        f_enc.add(Activation('relu', name='relu_enc_1'))
         f_enc.add(Dense(32))
-        f_enc.add(Activation('relu', name='relu_enc'))
+        f_enc.add(Activation('relu', name='relu_enc_2'))
         self.f_enc = f_enc
 
         program_embedding = Sequential(name='program_embedding')
@@ -65,7 +66,6 @@ class AdditionNPIModel(NPIStep):
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc_convert, program_embedding], mode='concat'))
-        # f_lstm.add(Activation('relu', name='relu_lstm_0'))
         f_lstm.add(LSTM(256, return_sequences=False, stateful=True))
         f_lstm.add(Activation('relu', name='relu_lstm_1'))
         f_lstm.add(RepeatVector(1))
@@ -76,13 +76,14 @@ class AdditionNPIModel(NPIStep):
         f_end = Sequential(name='f_end')
         f_end.add(f_lstm)
         f_end.add(Dense(10))
+        f_enc.add(Activation('relu', name='relu_end_1'))
         f_end.add(Dense(1))
-        f_end.add(Activation('hard_sigmoid', name='hard_sigmoid_end'))
-        # plot(f_end, to_file='f_end.png', show_shapes=True)
+        f_end.add(Activation('sigmoid', name='sigmoid_end'))
 
         f_prog = Sequential(name='f_prog')
         f_prog.add(f_lstm)
         f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE))
+        f_prog.add(Activation('relu', name='relu_prog_1'))
         f_prog.add(Dense(PROGRAM_VEC_SIZE))
         f_prog.add(Activation('softmax', name='softmax_prog'))
         # plot(f_prog, to_file='f_prog.png', show_shapes=True)
@@ -92,6 +93,7 @@ class AdditionNPIModel(NPIStep):
             f_arg = Sequential(name='f_arg%s' % ai)
             f_arg.add(f_lstm)
             f_arg.add(Dense(32))
+            f_arg.add(Activation('relu', name='relu_arg%s_1' % ai))
             f_arg.add(Dense(IntegerArguments.depth))
             f_arg.add(Activation('softmax', name='softmax_arg%s' % ai))
             f_args.append(f_arg)
