@@ -6,18 +6,15 @@ from copy import copy
 
 import math
 import numpy as np
-from keras.engine.topology import Merge, Input, InputLayer
+from keras.engine.topology import Merge, InputLayer
 from keras.engine.training import Model
-from keras.layers.core import Dense, Activation, Reshape, RepeatVector
+from keras.layers.core import Dense, Activation, RepeatVector, MaxoutDense
 from keras.layers.embeddings import Embedding
 from keras.layers.recurrent import LSTM
-from keras.layers.wrappers import TimeDistributed
 from keras.models import Sequential, model_from_yaml
-from keras.objectives import categorical_crossentropy
 from keras.optimizers import Adam
 from keras.regularizers import l1, l2
 from keras.utils.visualize_util import plot
-import keras.backend as K
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
 from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi, create_questions
@@ -51,10 +48,7 @@ class AdditionNPIModel(NPIStep):
 
         f_enc = Sequential(name='f_enc')
         f_enc.add(Merge([input_enc, input_arg], mode='concat'))
-        f_enc.add(Dense(256))
-        f_enc.add(Activation('relu', name='relu_enc_1'))
-        f_enc.add(Dense(32))
-        f_enc.add(Activation('relu', name='relu_enc_2'))
+        f_enc.add(MaxoutDense(128, nb_feature=4))
         self.f_enc = f_enc
 
         program_embedding = Sequential(name='program_embedding')
@@ -75,16 +69,13 @@ class AdditionNPIModel(NPIStep):
 
         f_end = Sequential(name='f_end')
         f_end.add(f_lstm)
-        f_end.add(Dense(10))
-        f_enc.add(Activation('relu', name='relu_end_1'))
-        f_end.add(Dense(1))
+        f_end.add(Dense(1, W_regularizer=l2(0.001)))
         f_end.add(Activation('sigmoid', name='sigmoid_end'))
 
         f_prog = Sequential(name='f_prog')
         f_prog.add(f_lstm)
-        f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE))
-        f_prog.add(Activation('relu', name='relu_prog_1'))
-        f_prog.add(Dense(PROGRAM_VEC_SIZE))
+        f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE, activation="relu"))
+        f_prog.add(Dense(PROGRAM_VEC_SIZE, W_regularizer=l2(0.001)))
         f_prog.add(Activation('softmax', name='softmax_prog'))
         # plot(f_prog, to_file='f_prog.png', show_shapes=True)
 
@@ -92,9 +83,7 @@ class AdditionNPIModel(NPIStep):
         for ai in range(1, IntegerArguments.max_arg_num+1):
             f_arg = Sequential(name='f_arg%s' % ai)
             f_arg.add(f_lstm)
-            f_arg.add(Dense(32))
-            f_arg.add(Activation('relu', name='relu_arg%s_1' % ai))
-            f_arg.add(Dense(IntegerArguments.depth))
+            f_arg.add(Dense(IntegerArguments.depth, W_regularizer=l2(0.001)))
             f_arg.add(Activation('softmax', name='softmax_arg%s' % ai))
             f_args.append(f_arg)
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
@@ -138,28 +127,30 @@ class AdditionNPIModel(NPIStep):
             self.train_f_enc(filter_question(lambda a, b: 10 <= a < 100 and 10 <= b < 100), epoch=100)
         self.f_enc.trainable = False
 
+        self.update_learning_rate(0.0001)
+
         q_type = "training questions of a+b < 10"
         print(q_type)
         pr = 0.8
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), epoch=epoch, pass_rate=pr)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<10 and b< 10 and 10 <= a+b"
         print(q_type)
         pr = 0.8
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), epoch=epoch, pass_rate=pr)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<10 and b<10"
         print(q_type)
         pr = 0.8
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), epoch=epoch, pass_rate=pr)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<100 and b<100"
         print(q_type)
         pr = 0.8
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), epoch=epoch, pass_rate=pr)
+        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 100 and b < 100), pass_rate=pr)
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         while True:
@@ -172,18 +163,17 @@ class AdditionNPIModel(NPIStep):
             q_type = "training questions of ALL"
             print(q_type)
             pr = 1.0
-            self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=pr)
-            all_ok = self.fit_to_subset(filter_question(lambda a, b: True), epoch=epoch, pass_rate=pr, skip_correct=True)
+            questions = filter_question(lambda a, b: True)
+            np.random.shuffle(questions)
+            questions = questions[:100]
+            all_ok = self.fit_to_subset(questions, pass_rate=pr)
             print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
-    def fit_to_subset(self, steps_list, epoch=3000, pass_rate=1.0, skip_correct=False):
-        learning_rate = 0.0001
-        for i in range(30):
-            all_ok = self.do_learn(steps_list, 30, learning_rate=learning_rate, pass_rate=pass_rate, arg_weight=1.,
-                                   skip_correct=skip_correct)
+    def fit_to_subset(self, steps_list, pass_rate=1.0, skip_correct=False):
+        for i in range(10):
+            all_ok = self.do_learn(steps_list, 100, pass_rate=pass_rate, skip_correct=skip_correct)
             if all_ok:
                 return True
-            learning_rate *= 0.95
         return False
 
     def test_to_subset(self, questions):
@@ -202,9 +192,7 @@ class AdditionNPIModel(NPIStep):
     def dict_to_str(d):
         return str(tuple([(k, d[k]) for k in sorted(d)]))
 
-    def do_learn(self, steps_list, epoch, learning_rate=None, pass_rate=1.0, arg_weight=1., skip_correct=False):
-        if learning_rate is not None:
-            self.update_learning_rate(learning_rate, arg_weight)
+    def do_learn(self, steps_list, epoch, pass_rate=1.0, skip_correct=False):
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
         npi_runner = TerminalNPIRunner(None, self)
         last_weights = None
@@ -225,7 +213,8 @@ class AdditionNPIModel(NPIStep):
                     correct_count[question_key] += 1
                     print("GOOD!: ep=%2d idx=%3d :%s CorrectCount=%s" % (ep, idx, self.dict_to_str(question), correct_count[question_key]))
                     ok_rate.append(1)
-                    if skip_correct or int(math.sqrt(correct_count[question_key])) ** 2 != correct_count[question_key]:
+                    cc = correct_count[question_key]
+                    if skip_correct or int(math.sqrt(cc)) ** 2 != cc:
                         continue
                 else:
                     ok_rate.append(0)
@@ -314,6 +303,8 @@ class AdditionNPIModel(NPIStep):
                     loss = env_model.train_on_batch(x, y)
                     losses.append(loss)
             print("ep %3d: loss=%s" % (ep, np.average(losses)))
+            if np.average(losses) < 1e-06:
+                break
 
     def question_test(self, addition_env, npi_runner, question):
         addition_env.reset()
