@@ -60,10 +60,10 @@ class AdditionNPIModel(NPIStep):
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc_convert, program_embedding], mode='concat'))
-        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.00001)))
+        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.0000001)))
         f_lstm.add(Activation('relu', name='relu_lstm_1'))
         f_lstm.add(RepeatVector(1))
-        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.00001)))
+        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.0000001)))
         f_lstm.add(Activation('relu', name='relu_lstm_2'))
         # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
 
