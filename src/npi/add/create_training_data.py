@@ -17,7 +17,7 @@ def main(stdscr, filename: str, num: int, result_logger: ResultLogger):
     addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
 
     questions = create_questions(num)
-    teacher = AdditionTeacher(program_set, terminal)
+    teacher = AdditionTeacher(program_set)
     npi_runner = TerminalNPIRunner(terminal, teacher)
     npi_runner.verbose = DEBUG_MODE
     steps_list = []

@@ -17,7 +17,7 @@ from keras.regularizers import l1, l2
 from keras.utils.visualize_util import plot
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
-from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi, create_questions
+from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi, create_questions, AdditionTeacher
 from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput, \
     to_one_hot_array
 from npi.terminal_core import TerminalNPIRunner
@@ -60,10 +60,10 @@ class AdditionNPIModel(NPIStep):
 
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc_convert, program_embedding], mode='concat'))
-        f_lstm.add(LSTM(256, return_sequences=False, stateful=True))
+        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.00001)))
         f_lstm.add(Activation('relu', name='relu_lstm_1'))
         f_lstm.add(RepeatVector(1))
-        f_lstm.add(LSTM(256, return_sequences=False, stateful=True))
+        f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.00001)))
         f_lstm.add(Activation('relu', name='relu_lstm_2'))
         # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
 
@@ -75,7 +75,7 @@ class AdditionNPIModel(NPIStep):
         f_prog = Sequential(name='f_prog')
         f_prog.add(f_lstm)
         f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE, activation="relu"))
-        f_prog.add(Dense(PROGRAM_VEC_SIZE, W_regularizer=l2(0.001)))
+        f_prog.add(Dense(PROGRAM_VEC_SIZE, W_regularizer=l2(0.0001)))
         f_prog.add(Activation('softmax', name='softmax_prog'))
         # plot(f_prog, to_file='f_prog.png', show_shapes=True)
 
@@ -83,7 +83,7 @@ class AdditionNPIModel(NPIStep):
         for ai in range(1, IntegerArguments.max_arg_num+1):
             f_arg = Sequential(name='f_arg%s' % ai)
             f_arg.add(f_lstm)
-            f_arg.add(Dense(IntegerArguments.depth, W_regularizer=l2(0.001)))
+            f_arg.add(Dense(IntegerArguments.depth, W_regularizer=l2(0.0001)))
             f_arg.add(Activation('softmax', name='softmax_arg%s' % ai))
             f_args.append(f_arg)
         # plot(f_arg, to_file='f_arg.png', show_shapes=True)
@@ -155,18 +155,27 @@ class AdditionNPIModel(NPIStep):
 
         while True:
             print("test all type of questions")
-            cc, wc = self.test_to_subset(create_questions(1000))
-            print("Accuracy %s(OK=%d, NG=%d)" % (cc/(cc+wc), cc, wc))
+            cc, wc, wrong_questions = self.test_to_subset(create_questions(1000))
+            acc_rate = cc/(cc+wc)
+            print("Accuracy %s(OK=%d, NG=%d)" % (acc_rate, cc, wc))
             if wc == 0:
                 break
 
             q_type = "training questions of ALL"
             print(q_type)
+            if acc_rate > 0.9:
+                print("training wrong questions")
+                self.fit_to_subset(wrong_questions, pass_rate=1.0, skip_correct=False)
+                q_num = 300
+                skip_correct = True
+            else:
+                q_num = 100
+                skip_correct = False
             pr = 1.0
             questions = filter_question(lambda a, b: True)
             np.random.shuffle(questions)
-            questions = questions[:100]
-            all_ok = self.fit_to_subset(questions, pass_rate=pr)
+            questions = questions[:q_num]
+            all_ok = self.fit_to_subset(questions, pass_rate=pr, skip_correct=skip_correct)
             print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
     def fit_to_subset(self, steps_list, pass_rate=1.0, skip_correct=False):
@@ -178,15 +187,20 @@ class AdditionNPIModel(NPIStep):
 
     def test_to_subset(self, questions):
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)
+        teacher = AdditionTeacher(self.program_set)
         npi_runner = TerminalNPIRunner(None, self)
+        teacher_runner = TerminalNPIRunner(None, teacher)
         correct_count = wrong_count = 0
+        wrong_steps_list = []
         for idx, question in enumerate(questions):
             question = copy(question)
             if self.question_test(addition_env, npi_runner, question):
                 correct_count += 1
             else:
+                self.question_test(addition_env, teacher_runner, question)
+                wrong_steps_list.append({"q": question, "steps": teacher_runner.step_list})
                 wrong_count += 1
-        return correct_count, wrong_count
+        return correct_count, wrong_count, wrong_steps_list
 
     @staticmethod
     def dict_to_str(d):

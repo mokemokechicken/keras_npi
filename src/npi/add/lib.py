@@ -119,9 +119,8 @@ class AdditionProgramSet:
 
 
 class AdditionTeacher(NPIStep):
-    def __init__(self, program_set: AdditionProgramSet, terminal: Terminal):
+    def __init__(self, program_set: AdditionProgramSet):
         self.pg_set = program_set
-        self.terminal = terminal  # as logger
         self.step_queue = None
         self.step_queue_stack = []
         self.sub_program = {}
