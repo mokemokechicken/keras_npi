@@ -17,7 +17,8 @@ from keras.regularizers import l1, l2
 from keras.utils.visualize_util import plot
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
-from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi, create_questions, AdditionTeacher
+from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi, create_questions, AdditionTeacher, \
+    create_random_questions
 from npi.core import NPIStep, Program, IntegerArguments, StepOutput, RuntimeSystem, PG_RETURN, StepInOut, StepInput, \
     to_one_hot_array
 from npi.terminal_core import TerminalNPIRunner
@@ -129,23 +130,23 @@ class AdditionNPIModel(NPIStep):
 
         self.update_learning_rate(0.0001)
 
-        q_type = "training questions of a+b < 10"
-        print(q_type)
-        pr = 0.8
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), pass_rate=pr)
-        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
-
-        q_type = "training questions of a<10 and b< 10 and 10 <= a+b"
-        print(q_type)
-        pr = 0.8
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), pass_rate=pr)
-        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
-
-        q_type = "training questions of a<10 and b<10"
-        print(q_type)
-        pr = 0.8
-        all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), pass_rate=pr)
-        print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
+        # q_type = "training questions of a+b < 10"
+        # print(q_type)
+        # pr = 0.8
+        # all_ok = self.fit_to_subset(filter_question(lambda a, b: a+b < 10), pass_rate=pr)
+        # print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
+        #
+        # q_type = "training questions of a<10 and b< 10 and 10 <= a+b"
+        # print(q_type)
+        # pr = 0.8
+        # all_ok = self.fit_to_subset(filter_question(lambda a, b: a<10 and b<10 and a + b >= 10), pass_rate=pr)
+        # print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
+        #
+        # q_type = "training questions of a<10 and b<10"
+        # print(q_type)
+        # pr = 0.8
+        # all_ok = self.fit_to_subset(filter_question(lambda a, b: a < 10 and b < 10), pass_rate=pr)
+        # print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         q_type = "training questions of a<100 and b<100"
         print(q_type)
@@ -154,23 +155,14 @@ class AdditionNPIModel(NPIStep):
         print("%s is pass_rate >= %s: %s" % (q_type, pr, all_ok))
 
         while True:
-            print("test all type of questions")
-            cc, wc, wrong_questions = self.test_to_subset(create_questions(1000))
-            acc_rate = cc/(cc+wc)
-            print("Accuracy %s(OK=%d, NG=%d)" % (acc_rate, cc, wc))
-            if wc == 0:
+            if self.test_and_learn([10, 100, 1000]):
                 break
 
             q_type = "training questions of ALL"
             print(q_type)
-            if acc_rate > 0.9:
-                print("training wrong questions")
-                self.fit_to_subset(wrong_questions, pass_rate=1.0, skip_correct=False)
-                q_num = 300
-                skip_correct = True
-            else:
-                q_num = 100
-                skip_correct = False
+
+            q_num = 100
+            skip_correct = False
             pr = 1.0
             questions = filter_question(lambda a, b: True)
             np.random.shuffle(questions)
@@ -184,6 +176,17 @@ class AdditionNPIModel(NPIStep):
             if all_ok:
                 return True
         return False
+
+    def test_and_learn(self, num_questions):
+        for num in num_questions:
+            print("test all type of %d questions" % num)
+            cc, wc, wrong_questions = self.test_to_subset(create_random_questions(num))
+            acc_rate = cc/(cc+wc)
+            print("Accuracy %s(OK=%d, NG=%d)" % (acc_rate, cc, wc))
+            if wc > 0:
+                self.fit_to_subset(wrong_questions, pass_rate=1.0, skip_correct=False)
+                return False
+        return True
 
     def test_to_subset(self, questions):
         addition_env = AdditionEnv(FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH)

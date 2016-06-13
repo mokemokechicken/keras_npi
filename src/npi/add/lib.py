@@ -249,6 +249,12 @@ def create_questions(num=100, max_number=10000):
         dict(in1=104, in2=902),
     ]
 
+    questions += create_random_questions(num=num, max_number=max_number)
+    return questions
+
+
+def create_random_questions(num=100, max_number=10000):
+    questions = []
     for _ in range(num):
         questions.append(dict(in1=int(random() * max_number), in2=int(random() * max_number)))
     return questions
