@@ -7,11 +7,11 @@ import numpy as np
 from npi.core import Program, IntegerArguments, StepOutput, NPIStep, PG_CONTINUE, PG_RETURN
 from npi.terminal_core import Screen, Terminal
 
-__author__ = u'k_morishita'
+__author__ = 'k_morishita'
 
 
 class AdditionEnv(object):
-    u"""
+    """
     Environment of Addition
     """
     def __init__(self, height, width, num_chars):
@@ -35,13 +35,13 @@ class AdditionEnv(object):
         if 0 <= ch < self.num_chars:
             ret[ch] = 1
         else:
-            raise IndexError(u"ch must be 0 <= ch < %s, but %s" % (self.num_chars, ch))
+            raise IndexError("ch must be 0 <= ch < %s, but %s" % (self.num_chars, ch))
         return ret
 
     def setup_problem(self, num1, num2):
-        for i, s in enumerate(reversed(u"%s" % num1)):
+        for i, s in enumerate(reversed("%s" % num1)):
             self.screen[0, -(i+1)] = int(s) + 1
-        for i, s in enumerate(reversed(u"%s" % num2)):
+        for i, s in enumerate(reversed("%s" % num2)):
             self.screen[1, -(i+1)] = int(s) + 1
 
     def move_pointer(self, row, left_or_right):
@@ -54,11 +54,11 @@ class AdditionEnv(object):
             self.screen[row, self.pointers[row]] = ch
 
     def get_output(self):
-        s = u""
+        s = ""
         for ch in self.screen[3]:
             if ch > 0:
-                s += u"%s" % (ch-1)
-        return int(s or u"0")
+                s += "%s" % (ch-1)
+        return int(s or "0")
 
 
 class MovePtrProgram(Program):
@@ -89,14 +89,14 @@ class WriteProgram(Program):
 
 
 class AdditionProgramSet(object):
-    NOP = Program(u'NOP')
-    MOVE_PTR = MovePtrProgram(u'MOVE_PTR', 4, 2)  # PTR_KIND(4), LEFT_OR_RIGHT(2)
-    WRITE = WriteProgram(u'WRITE', 2, 10)       # CARRY_OR_OUT(2), DIGITS(10)
-    ADD = Program(u'ADD')
-    ADD1 = Program(u'ADD1')
-    CARRY = Program(u'CARRY')
-    LSHIFT = Program(u'LSHIFT')
-    RSHIFT = Program(u'RSHIFT')
+    NOP = Program('NOP')
+    MOVE_PTR = MovePtrProgram('MOVE_PTR', 4, 2)  # PTR_KIND(4), LEFT_OR_RIGHT(2)
+    WRITE = WriteProgram('WRITE', 2, 10)       # CARRY_OR_OUT(2), DIGITS(10)
+    ADD = Program('ADD')
+    ADD1 = Program('ADD1')
+    CARRY = Program('CARRY')
+    LSHIFT = Program('LSHIFT')
+    RSHIFT = Program('RSHIFT')
 
     def __init__(self):
         self.map = {}
@@ -229,8 +229,8 @@ class AdditionTeacher(NPIStep):
 
 
 def create_char_map():
-    char_map = dict((i+1, u"%s" % i) for i in xrange(10))
-    char_map[0] = u' '
+    char_map = dict((i+1, "%s" % i) for i in xrange(10))
+    char_map[0] = ' '
     return char_map
 
 
@@ -262,13 +262,13 @@ def create_random_questions(num=100, max_number=10000):
 
 
 def run_npi(addition_env, npi_runner, program, data):
-    data[u'expect'] = data[u'in1'] + data[u'in2']
+    data['expect'] = data['in1'] + data['in2']
 
-    addition_env.setup_problem(data[u'in1'], data[u'in2'])
+    addition_env.setup_problem(data['in1'], data['in2'])
 
     npi_runner.reset()
     npi_runner.display_env(addition_env, force=True)
     npi_runner.npi_program_interface(addition_env, program, IntegerArguments())
 
-    data[u'result'] = addition_env.get_output()
-    data[u'correct'] = data[u'result'] == data[u'expect']
+    data['result'] = addition_env.get_output()
+    data['correct'] = data['result'] == data['expect']

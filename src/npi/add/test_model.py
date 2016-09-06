@@ -31,18 +31,18 @@ def main(stdscr, model_path, num, result_logger):
         run_npi(addition_env, npi_runner, program_set.ADD, data)
         result_logger.write(data)
         terminal.add_log(data)
-        if data[u'correct']:
+        if data['correct']:
             correct_count += 1
         else:
             wrong_count += 1
     return correct_count, wrong_count
 
 
-if __name__ == u'__main__':
+if __name__ == '__main__':
     import sys
-    DEBUG_MODE = os.environ.get(u'DEBUG')
+    DEBUG_MODE = os.environ.get('DEBUG')
     model_path_ = sys.argv[1]
     num_data = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
-    log_filename = sys.argv[3] if len(sys.argv) > 3 else u'result.log'
+    log_filename = sys.argv[3] if len(sys.argv) > 3 else 'result.log'
     cc, wc = curses.wrapper(main, model_path_, num_data, ResultLogger(log_filename))
-    print u"Accuracy %s(OK=%d, NG=%d)" % (cc/(cc+wc), cc, wc)
+    print "Accuracy %s(OK=%d, NG=%d)" % (cc/(cc+wc), cc, wc)

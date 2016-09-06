@@ -6,7 +6,7 @@ import numpy as np
 
 from npi.core import Program, IntegerArguments, NPIStep, StepOutput, StepInput, StepInOut
 
-__author__ = u'k_morishita'
+__author__ = 'k_morishita'
 
 
 class Screen(object):
@@ -71,7 +71,7 @@ class Terminal(object):
 
     def update_main_screen(self, screen):
         for y in xrange(screen.height):
-            line = u"".join([self.char_map[ch] for ch in screen[y]])
+            line = "".join([self.char_map[ch] for ch in screen[y]])
             self.ignore_error_add_str(self.main_window, y, 0, line)
 
     def update_main_window_attr(self, screen, y, x, attr):
@@ -92,13 +92,13 @@ class Terminal(object):
         self.log_list = self.log_list[:self.LOG_WINDOW_HEIGHT-1]
         self.log_window.clear()
         for i, line in enumerate(self.log_list):
-            line = unicode(line) + u" " * (self.LOG_WINDOW_WIDTH - len(unicode(line)))
+            line = unicode(line) + " " * (self.LOG_WINDOW_WIDTH - len(unicode(line)))
             self.log_window.addstr(i, 0, line)
         self.log_window.refresh()
 
     @staticmethod
     def ignore_error_add_str(win, y, x, s, attr=curses.A_NORMAL):
-        u"""一番右下に書き込むと例外が飛んでくるけど、漢は黙って無視するのがお作法らしい？"""
+        """一番右下に書き込むと例外が飛んでくるけど、漢は黙って無視するのがお作法らしい？"""
         try:
             win.addstr(y, x, s, attr)
         except curses.error:
@@ -136,12 +136,12 @@ class TerminalNPIRunner(object):
     def display_information(self, program, arguments, result, depth):
         if self.verbose and self.terminal:
             information = [
-                u"Step %2d Depth: %2d" % (self.steps, depth),
+                "Step %2d Depth: %2d" % (self.steps, depth),
                 program.description_with_args(arguments),
-                u'r=%.2f' % result.r,
+                'r=%.2f' % result.r,
             ]
             if result.program:
-                information.append(u"-> %s" % result.program.description_with_args(result.arguments))
+                information.append("-> %s" % result.program.description_with_args(result.arguments))
             self.terminal.update_info_screen(information)
             self.wait()
 

@@ -46,7 +46,7 @@ class IntegerArguments(object):
         self.values[index, int(np.clip(integer, 0, self.depth-1))] = 1
 
     def __str__(self):
-        return u"<IA: %s>" % self.decode_all()
+        return "<IA: %s>" % self.decode_all()
 
 
 class Program(object):
@@ -59,7 +59,7 @@ class Program(object):
 
     def description_with_args(self, args):
         int_args = args.decode_all()
-        return u"%s(%s)" % (self.name, u", ".join([unicode(x) for x in int_args]))
+        return "%s(%s)" % (self.name, ", ".join([unicode(x) for x in int_args]))
 
     def to_one_hot(self, size, dtype=np.float):
         ret = np.zeros((size,), dtype=dtype)
@@ -70,7 +70,7 @@ class Program(object):
         raise NotImplementedError()
 
     def __str__(self):
-        return u"<Program: name=%s>" % self.name
+        return "<Program: name=%s>" % self.name
 
 
 class StepInput(object):
@@ -87,7 +87,7 @@ class StepOutput(object):
         self.arguments = arguments
 
     def __str__(self):
-        return u"<StepOutput: r=%s pg=%s arg=%s>" % (self.r, self.program, self.arguments)
+        return "<StepOutput: r=%s pg=%s arg=%s>" % (self.r, self.program, self.arguments)
 
 
 class StepInOut(object):
@@ -101,9 +101,10 @@ class ResultLogger(object):
         self.filename = filename
 
     def write(self, obj):
-        with open(self.filename, u"a") as f:
-            json.dump(obj, f)
-            f.write(u"\n")
+        with open(self.filename, "a") as f:
+            #json.dump(obj, f)
+            #f.write('\n')
+            pass
 
 
 class NPIStep(object):

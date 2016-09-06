@@ -16,16 +16,16 @@ def main(filename, model_path):
     system = RuntimeSystem()
     program_set = AdditionProgramSet()
 
-    with open(filename, u'rb') as f:
+    with open(filename, 'rb') as f:
         steps_list = pickle.load(f)
 
     npi_model = AdditionNPIModel(system, model_path, program_set)
     npi_model.fit(steps_list)
 
 
-if __name__ == u'__main__':
+if __name__ == '__main__':
     import sys
-    DEBUG_MODE = os.environ.get(u'DEBUG')
+    DEBUG_MODE = os.environ.get('DEBUG')
     train_filename = sys.argv[1]
     model_output = sys.argv[2]
     main(train_filename, model_output)
