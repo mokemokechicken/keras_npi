@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 # coding: utf-8
+from __future__ import absolute_import
 import curses
 import numpy as np
 
 from npi.core import Program, IntegerArguments, NPIStep, StepOutput, StepInput, StepInOut
 
-__author__ = 'k_morishita'
+__author__ = u'k_morishita'
 
 
-class Screen:
+class Screen(object):
     data = None
 
     def __init__(self, height, width):
@@ -32,7 +33,7 @@ class Screen:
         return self.data[item]
 
 
-class Terminal:
+class Terminal(object):
     W_TOP = 1
     W_LEFT = 1
     LOG_WINDOW_HEIGHT = 10
@@ -45,9 +46,9 @@ class Terminal:
     log_window = None
 
     def __init__(self, stdscr, char_map=None):
-        print(type(stdscr))
+        print type(stdscr)
         self.stdscr = stdscr
-        self.char_map = char_map or dict((ch, chr(ch)) for ch in range(128))
+        self.char_map = char_map or dict((ch, unichr(ch)) for ch in xrange(128))
         self.log_list = []
 
     def init_window(self, width, height):
@@ -69,8 +70,8 @@ class Terminal:
         self.stdscr.getch()
 
     def update_main_screen(self, screen):
-        for y in range(screen.height):
-            line = "".join([self.char_map[ch] for ch in screen[y]])
+        for y in xrange(screen.height):
+            line = u"".join([self.char_map[ch] for ch in screen[y]])
             self.ignore_error_add_str(self.main_window, y, 0, line)
 
     def update_main_window_attr(self, screen, y, x, attr):
@@ -87,17 +88,17 @@ class Terminal:
         self.info_window.refresh()
 
     def add_log(self, line):
-        self.log_list.insert(0, str(line)[:self.LOG_WINDOW_WIDTH])
+        self.log_list.insert(0, unicode(line)[:self.LOG_WINDOW_WIDTH])
         self.log_list = self.log_list[:self.LOG_WINDOW_HEIGHT-1]
         self.log_window.clear()
         for i, line in enumerate(self.log_list):
-            line = str(line) + " " * (self.LOG_WINDOW_WIDTH - len(str(line)))
+            line = unicode(line) + u" " * (self.LOG_WINDOW_WIDTH - len(unicode(line)))
             self.log_window.addstr(i, 0, line)
         self.log_window.refresh()
 
     @staticmethod
     def ignore_error_add_str(win, y, x, s, attr=curses.A_NORMAL):
-        """一番右下に書き込むと例外が飛んでくるけど、漢は黙って無視するのがお作法らしい？"""
+        u"""一番右下に書き込むと例外が飛んでくるけど、漢は黙って無視するのがお作法らしい？"""
         try:
             win.addstr(y, x, s, attr)
         except curses.error:
@@ -111,8 +112,8 @@ def show_env_to_terminal(terminal, env):
     terminal.refresh_main_window()
 
 
-class TerminalNPIRunner:
-    def __init__(self, terminal: Terminal, model: NPIStep=None, recording=True, max_depth=10, max_step=1000):
+class TerminalNPIRunner(object):
+    def __init__(self, terminal, model=None, recording=True, max_depth=10, max_step=1000):
         self.terminal = terminal
         self.model = model
         self.steps = 0
@@ -132,19 +133,19 @@ class TerminalNPIRunner:
         if (self.verbose or force) and self.terminal:
             show_env_to_terminal(self.terminal, env)
 
-    def display_information(self, program: Program, arguments: IntegerArguments, result: StepOutput, depth: int):
+    def display_information(self, program, arguments, result, depth):
         if self.verbose and self.terminal:
             information = [
-                "Step %2d Depth: %2d" % (self.steps, depth),
+                u"Step %2d Depth: %2d" % (self.steps, depth),
                 program.description_with_args(arguments),
-                'r=%.2f' % result.r,
+                u'r=%.2f' % result.r,
             ]
             if result.program:
-                information.append("-> %s" % result.program.description_with_args(result.arguments))
+                information.append(u"-> %s" % result.program.description_with_args(result.arguments))
             self.terminal.update_info_screen(information)
             self.wait()
 
-    def npi_program_interface(self, env, program: Program, arguments: IntegerArguments, depth=0):
+    def npi_program_interface(self, env, program, arguments, depth=0):
         if self.max_depth < depth or self.max_step < self.steps:
             raise StopIteration()
 
