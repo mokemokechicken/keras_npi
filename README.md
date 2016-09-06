@@ -2,16 +2,19 @@ About
 =====
 
 Implementation of [Neural Programmer-Interpreters](http://arxiv.org/abs/1511.06279) with Keras.
+Modified to use Python2 instead of Python3 and with example Jupyter notebooks (in the notebooks directory). 
 
 How to Demo
 ===========
 
 [Demo Movie](https://youtu.be/s7PuBqwI2YA)
 
+[View the Notebook](notebooks/TrainModel.ipynb)
+
 requirement
 -----------
 
-* Python3
+* Python2
 
 setup
 -----

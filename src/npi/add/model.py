@@ -16,7 +16,8 @@ from keras.layers.recurrent import LSTM
 from keras.models import Sequential, model_from_yaml
 from keras.optimizers import Adam
 from keras.regularizers import l1, l2
-from keras.utils.visualize_util import plot
+from keras.utils.visualize_util import model_to_dot
+
 
 from npi.add.config import FIELD_ROW, FIELD_DEPTH, PROGRAM_VEC_SIZE, PROGRAM_KEY_VEC_SIZE, FIELD_WIDTH
 from npi.add.lib import AdditionProgramSet, AdditionEnv, run_npi, create_questions, AdditionTeacher, \
@@ -28,6 +29,11 @@ from itertools import izip
 
 __author__ = 'k_morishita'
 
+def plot(in_model, to_file, **kwargs):
+    """
+    A SVG-based version of the keras version
+    """
+    return model_to_dot(in_model, **kwargs).write_svg(to_file)
 
 class AdditionNPIModel(NPIStep):
     model = None
@@ -65,11 +71,11 @@ class AdditionNPIModel(NPIStep):
         f_lstm = Sequential(name='f_lstm')
         f_lstm.add(Merge([f_enc_convert, program_embedding], mode='concat'))
         f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.0000001)))
-        f_lstm.add(Activation('rel', name='relu_lstm_1'))
+        f_lstm.add(Activation('relu', name='relu_lstm_1'))
         f_lstm.add(RepeatVector(1))
         f_lstm.add(LSTM(256, return_sequences=False, stateful=True, W_regularizer=l2(0.0000001)))
-        f_lstm.add(Activation('rel', name='relu_lstm_2'))
-        # plot(f_lstm, to_file='f_lstm.png', show_shapes=True)
+        f_lstm.add(Activation('relu', name='relu_lstm_2'))
+        plot(f_lstm, to_file='f_lstm.svg', show_shapes=True)
 
         f_end = Sequential(name='f_end')
         f_end.add(f_lstm)
@@ -78,10 +84,10 @@ class AdditionNPIModel(NPIStep):
 
         f_prog = Sequential(name='f_prog')
         f_prog.add(f_lstm)
-        f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE, activation="rel"))
+        f_prog.add(Dense(PROGRAM_KEY_VEC_SIZE, activation="relu"))
         f_prog.add(Dense(PROGRAM_VEC_SIZE, W_regularizer=l2(0.0001)))
         f_prog.add(Activation('softmax', name='softmax_prog'))
-        # plot(f_prog, to_file='f_prog.png', show_shapes=True)
+        plot(f_prog, to_file='f_prog.svg', show_shapes=True)
 
         f_args = []
         for ai in xrange(1, IntegerArguments.max_arg_num+1):
@@ -96,7 +102,7 @@ class AdditionNPIModel(NPIStep):
                            [f_end.output, f_prog.output] + [fa.output for fa in f_args],
                            name="npi")
         self.compile_model()
-        plot(self.model, to_file='model.png', show_shapes=True)
+        plot(self.model, to_file='model.svg', show_shapes=True)
 
     def reset(self):
         super(AdditionNPIModel, self).reset()
@@ -265,8 +271,7 @@ class AdditionNPIModel(NPIStep):
                     last_weights = self.model.get_weights()
             if losses:
                 cur_loss = np.average(losses)
-                print "ep=%2d: ok_rate=%.2f%% (+%s -%s): ave loss %s (%s samples)" %
-                      (ep, np.average(ok_rate)*100, correct_new, wrong_new, cur_loss, len(steps_list))
+                print "ep=%2d: ok_rate=%.2f%% (+%s -%s): ave loss %s (%s samples)" % (ep, np.average(ok_rate)*100, correct_new, wrong_new, cur_loss, len(steps_list))
                 # self.print_weights()
                 if correct_new + wrong_new == 0:
                     no_change_count += 1
