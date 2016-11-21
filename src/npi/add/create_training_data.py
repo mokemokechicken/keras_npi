@@ -1,4 +1,6 @@
 # coding: utf-8
+from __future__ import with_statement
+from __future__ import absolute_import
 import os
 import curses
 import pickle
@@ -8,9 +10,10 @@ from npi.add.config import FIELD_ROW, FIELD_WIDTH, FIELD_DEPTH
 from npi.add.lib import AdditionEnv, AdditionProgramSet, AdditionTeacher, create_char_map, create_questions, run_npi
 from npi.core import ResultLogger
 from npi.terminal_core import TerminalNPIRunner, Terminal
+from io import open
 
 
-def main(stdscr, filename: str, num: int, result_logger: ResultLogger):
+def main(stdscr, filename, num, result_logger):
     terminal = Terminal(stdscr, create_char_map())
     terminal.init_window(FIELD_WIDTH, FIELD_ROW)
     program_set = AdditionProgramSet()
@@ -45,4 +48,4 @@ if __name__ == '__main__':
         num_data = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
         log_filename = sys.argv[3] if len(sys.argv) > 3 else 'result.log'
     curses.wrapper(main, output_filename, num_data, ResultLogger(log_filename))
-    print("create %d training data" % num_data)
+    print "create %d training data" % num_data

@@ -1,4 +1,6 @@
 # coding: utf-8
+from __future__ import division
+from __future__ import absolute_import
 import curses
 import os
 import pickle
@@ -10,7 +12,7 @@ from npi.core import ResultLogger, RuntimeSystem
 from npi.terminal_core import TerminalNPIRunner, Terminal
 
 
-def main(stdscr, model_path: str, num: int, result_logger: ResultLogger):
+def main(stdscr, model_path, num, result_logger):
     terminal = Terminal(stdscr, create_char_map())
     terminal.init_window(FIELD_WIDTH, FIELD_ROW)
     program_set = AdditionProgramSet()
@@ -43,4 +45,4 @@ if __name__ == '__main__':
     num_data = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
     log_filename = sys.argv[3] if len(sys.argv) > 3 else 'result.log'
     cc, wc = curses.wrapper(main, model_path_, num_data, ResultLogger(log_filename))
-    print("Accuracy %s(OK=%d, NG=%d)" % (cc/(cc+wc), cc, wc))
+    print "Accuracy %s(OK=%d, NG=%d)" % (cc/(cc+wc), cc, wc)

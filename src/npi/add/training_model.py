@@ -1,4 +1,6 @@
 # coding: utf-8
+from __future__ import with_statement
+from __future__ import absolute_import
 import os
 import pickle
 
@@ -7,9 +9,10 @@ from npi.add.lib import AdditionEnv, AdditionProgramSet, AdditionTeacher, create
 from npi.add.model import AdditionNPIModel
 from npi.core import ResultLogger, RuntimeSystem
 from npi.terminal_core import TerminalNPIRunner, Terminal
+from io import open
 
 
-def main(filename: str, model_path: str):
+def main(filename, model_path):
     system = RuntimeSystem()
     program_set = AdditionProgramSet()
 
